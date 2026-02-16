@@ -20,14 +20,14 @@ class Booking:
         self.__fare = fare #### ชื่อยังไม่ตรง
         self.__flight_no = None
         self.__seat = None
-        self.__payment_status = None
+        self.__payment_status = PaymentStatus.PAID 
         self.__booking_status = BookingStatus.CONFIRMED ###ชื่อยังไม่ตรง
         self.__date_time = None
         self.__max_weight= None
         self.__payment = Payment() ## เพิ่มข่องทางการชำระเงิน
 
     def validate(self) -> bool:
-        return self.__booking_status == BookingStatus.CONFIRMED
+        return self.__booking_status == BookingStatus.CONFIRMED and self.__payment_status == PaymentStatus.PAID
 
     def update_status(self, booking_status: BookingStatus, payment_status : PaymentStatus):
         self.__booking_status = booking_status
@@ -38,7 +38,7 @@ class Booking:
     def get_amount(self) -> float: return self.__fare
     def get_pnr(self) -> str: return self.__pnr
     def get_payment(self) : return self.__payment #Payment
-
+    def get_status(self): return "Booking: " + self.__booking_status.value + ", Payment: " + self.__payment_status.value
 
 class Passenger:
     def __init__(self, first_name: str, last_name: str):
@@ -52,9 +52,7 @@ class Passenger:
         self.__booking_times = 0
     
     def add_booking(self,booking: Booking): self.__bookings.append (booking)
-
     def get_booking(self): return self.__bookings
-
     def booking_request(self):pass
 
 class Payment:
@@ -81,13 +79,13 @@ class FinanceOfficer:
         return True
 
 class Airline:
-    def __init__(self):
-        self.__name = None #str
-        self.__finance_officer = FinanceOfficer() #ควรแยกเป็น starf start ไหม
+    def __init__(self,name : str, country : str):
+        self.__name = name #str       
+        self.__country = country
         self.__airplane = None #[]
-        self.__country = None #[]
         self.__is_active = None #bool
         self.__passenger = []
+        self.__finance_officer = FinanceOfficer() #ควรแยกเป็น starf start ไหม
 
     def request_refund(self, pnr:str):
         print("Airline: refund requested")
@@ -136,14 +134,9 @@ class Airline:
                     return passenger
         raise ValueError ("unfounded")
 
-passenger = Passenger("John", "Doe")
-
-booking = Booking("PNR123", 5000.0)
-
-airline = Airline()
-
-passenger.add_booking (booking)
-airline.add_passenger (passenger)
-
-
-airline.request_refund("PNR123")
+#airline = Airline("KNNS airways","Thailand")
+# passenger = Passenger("John", "Doe")
+# booking = Booking("PNR123", 5000.0)
+# passenger.add_booking (booking)
+# airline.add_passenger (passenger)
+#airline.request_refund("PNR123")
