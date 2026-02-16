@@ -1,9 +1,10 @@
 from fastapi import FastAPI
+from pydantic import BaseModel
 import uvicorn
 
 app = FastAPI()
 
-class Payment:
+class Payment(BaseModel):
     def __init__(self):
         self.__status = "PENDING"
 
@@ -20,7 +21,7 @@ class Payment:
         return self.__status
 
 
-class Passenger:
+class Passenger(BaseModel):
     def __init__(self, first_name: str, luggage_weight: int):
         self.__first_name = first_name
         self.__luggage_weight = luggage_weight
@@ -33,7 +34,7 @@ class Passenger:
         return self.__first_name
 
 
-class Booking:
+class Booking(BaseModel):
     def __init__(self, pnr: str, luggage_limit: int, is_valid: bool=True):
         self.__pnr = pnr
         self.__is_valid = is_valid
@@ -99,10 +100,9 @@ payment = Payment()
 def home():
     return {"message":"Welcome to KNNS Airways"}
 
-@app.get("/loadluggage")
-def Loadluggage(weight:int):
-    passenger.set_weight(weight)
-    message = airline.load_luggage(pnr="ABC123",
+@app.post("/loadluggage")
+def Loadluggage(pnr:str,booking:Booking,passenger:Passenger,payment:Payment):
+    message = airline.load_luggage(pnr=pnr,
     booking=booking,
     passenger=passenger,
     payment=payment
