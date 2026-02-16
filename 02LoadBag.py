@@ -2,20 +2,6 @@ from datetime import datetime
 from typing import List
 
 
-class Transaction:
-    def __init__(self, transaction_id: str, amount: float):
-        self.__transaction_id = transaction_id
-        self.__amount = amount
-        self.__created_at = datetime.now()
-
-    def print_transaction(self):
-        return {
-            "transaction_id": self.__transaction_id,
-            "amount": self.__amount,
-            "created_at": self.__created_at
-        }
-
-
 class Payment:
     def __init__(self):
         self.__status = "PENDING"
@@ -34,35 +20,37 @@ class Payment:
 
 
 class Passenger:
-    def __init__(self, first_name: str, luggage_limit: int):
+    def __init__(self, first_name: str, luggage_weight: int):
         self.__first_name = first_name
-        self.__luggage_limit = luggage_limit
-        self.__transactions: List[Transaction] = []
+        self.__luggage_weight = luggage_weight
 
-    def verify_weight(self, weight: int) -> bool:
-        return weight <= self.__luggage_limit
-
-    def add_transaction(self, transaction: Transaction):
-        self.__transactions.append(transaction)
-
-    def get_luggage_limit(self):
-        return self.__luggage_limit
+    def get_weight(self) -> int:
+        return self.__luggage_weight
 
 
 class Booking:
-    def __init__(self, pnr: str, is_valid: bool = True):
+    def __init__(self, pnr: str, luggage_limit: int, is_valid: bool=True):
         self.__pnr = pnr
         self.__is_valid = is_valid
+        self.__luggage_limit = luggage_limit
 
     def validate_booking(self, pnr: str) -> bool:
         return self.__pnr == pnr and self.__is_valid
+    
+    def get_luggage_limit(self):
+        return self.__luggage_limit
 
 
 class Airline:
     def __init__(self):
         self.__extra_fee_per_kg = 500  # บาท / กิโล
 
-    def load_luggage(self, pnr: str, weight: int,
+    def verify_weight(self,booking:Booking,passenger:Passenger):
+        if(passenger.get_weight()<=booking.get_luggage_limit()):
+            return True
+        return False
+
+    def load_luggage(self, pnr: str,
                      booking: Booking,
                      passenger: Passenger,
                      payment: Payment):
@@ -71,44 +59,31 @@ class Airline:
             return "Error: Invalid booking"
 
         # 2. verify luggage weight
-        if passenger.verify_weight(weight):
+        if self.verify_weight(booking,passenger):
             return "Luggage loaded (within limit)"
 
         # 3. calculate extra fee
-        extra_weight = weight - passenger.get_luggage_limit()
+        extra_weight = passenger.get_weight() -booking.get_luggage_limit()
         extra_fee = self.__calculate_extra_weight_fee(extra_weight)
 
         # 4. payment
         payment_result = payment.process_payment(extra_fee)
         if not payment_result:
             return "Error: Extra baggage payment failed"
-
-        # 5. create transaction
-        transaction = Transaction(
-            transaction_id=f"TXN-{pnr}",
-            amount=extra_fee
-        )
-
-        passenger.add_transaction(transaction)
-
-        return {
-            "message": "Luggage loaded with extra fee",
-            "extra_fee": extra_fee,
-            "transaction": transaction.print_transaction()
-        }
+        
+        return f"Luggage loaded (Extra Fee = {extra_fee})"
 
     def __calculate_extra_weight_fee(self, extra_weight: int) -> float:
         return extra_weight * self.__extra_fee_per_kg
 
 
 airline = Airline()
-booking = Booking(pnr="ABC123", is_valid=True)
-passenger = Passenger(first_name="John", luggage_limit=20)
+booking = Booking(pnr="ABC123",luggage_limit=50, is_valid=True)
+passenger = Passenger(first_name="John", luggage_weight=90)
 payment = Payment()
 
 result = airline.load_luggage(
     pnr="ABC123",
-    weight=25,
     booking=booking,
     passenger=passenger,
     payment=payment
