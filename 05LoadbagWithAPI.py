@@ -1,8 +1,10 @@
-from datetime import datetime
-from typing import List
+from fastapi import FastAPI
+from pydantic import BaseModel
+import uvicorn
 
+app = FastAPI()
 
-class Payment:
+class Payment(BaseModel):
     def __init__(self):
         self.__status = "PENDING"
 
@@ -19,16 +21,20 @@ class Payment:
         return self.__status
 
 
-class Passenger:
+class Passenger(BaseModel):
     def __init__(self, first_name: str, luggage_weight: int):
         self.__first_name = first_name
         self.__luggage_weight = luggage_weight
 
     def get_weight(self) -> int:
         return self.__luggage_weight
+    def set_weight(self,weight):
+        self.__luggage_weight = weight
+    def get_name(self):
+        return self.__first_name
 
 
-class Booking:
+class Booking(BaseModel):
     def __init__(self, pnr: str, luggage_limit: int, is_valid: bool=True):
         self.__pnr = pnr
         self.__is_valid = is_valid
@@ -60,7 +66,11 @@ class Airline:
 
         # 2. verify luggage weight
         if self.verify_weight(booking,passenger):
-            return "Luggage loaded (within limit)"
+            return {"name":passenger.get_name(),
+           "luggage_weight":passenger.get_weight(),
+           "limitweight":booking.get_luggage_limit(),
+        "message":f"Luggage loaded (WithinLimit)"
+        }
 
         # 3. calculate extra fee
         extra_weight = passenger.get_weight() -booking.get_luggage_limit()
@@ -71,8 +81,12 @@ class Airline:
         if not payment_result:
             return "Error: Extra baggage payment failed"
         
-        return f"Luggage loaded (Extra Fee = {extra_fee})"
-
+        return {"name":passenger.get_name(),
+           "luggage_weight":passenger.get_weight(),
+           "limitweight":booking.get_luggage_limit(),
+        "message":f"Luggage loaded (Extra Fee :{extra_weight} X {self.__extra_fee_per_kg} = {extra_fee})"
+        }
+    
     def __calculate_extra_weight_fee(self, extra_weight: int) -> float:
         return extra_weight * self.__extra_fee_per_kg
 
@@ -82,11 +96,18 @@ booking = Booking(pnr="ABC123",luggage_limit=50, is_valid=True)
 passenger = Passenger(first_name="John", luggage_weight=90)
 payment = Payment()
 
-result = airline.load_luggage(
-    pnr="ABC123",
+@app.get("/")
+def home():
+    return {"message":"Welcome to KNNS Airways"}
+
+@app.post("/loadluggage")
+def Loadluggage(pnr:str,booking:Booking,passenger:Passenger,payment:Payment):
+    message = airline.load_luggage(pnr=pnr,
     booking=booking,
     passenger=passenger,
     payment=payment
-)
+    )
+    return message
 
-print(result)
+if __name__ == "__main__":
+    uvicorn.run(app, host="127.0.0.1", port=8000, log_level="info")
