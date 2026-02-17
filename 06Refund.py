@@ -8,13 +8,21 @@ airline = Airline("KNNS airways","Thailand")
 
 @app.post ("/requestRefund/{pnr}")
 def requestRefund (pnr:str):
-    airline.request_refund (pnr)
-    return "Refund Booking: " +pnr+ " Is Complete"
+    if len(pnr)!=6 : return f"Error occurred: Wrong Len"
+    try :
+        airline.request_refund (pnr)
+        return "Refund Booking: " +pnr+ " Is Complete"
+    except Exception as e:
+        return f"Error occurred: {e}"
 
 @app.get ("/getBookkingStatus/{pnr}")
 def getBookkingStatus (pnr:str):
-    bookings = airline.find_booking_by_pnr(pnr)
-    return "Booking: " + pnr + ", Status --> " + bookings.get_status()
+    if len(pnr)!=6 : return f"Error occurred: Wrong Len"
+    try :
+        bookings = airline.find_booking_by_pnr(pnr)
+        return "Booking: " + pnr + ", Status --> " + bookings.get_status()
+    except Exception as e:
+        return f"Error occurred: {e}"
 
 def create_system () :
     passenger = Passenger("John", "Doe")
