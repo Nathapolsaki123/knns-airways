@@ -49,11 +49,13 @@ class Booking(BaseModel):
     
     def get_luggage_limit(self):
         return self.__luggage_limit
+    def set_luggage_limit(self,weight:int):
+        self.__luggage_limit = weight
 
 
 class Airline:
     def __init__(self):
-        self.__extra_fee_per_kg = 500  # บาท / กิโล
+        self.__extra_fee_per_kg = 250  # บาท / กิโล
 
     def verify_weight(self,weight_limit:int,passenger:Passenger):
         if(passenger.get_weight()<=weight_limit):
@@ -106,7 +108,9 @@ def home():
     return {"message":"Welcome to KNNS Airways"}
 
 @app.post("/loadluggage")
-def Loadluggage(pnr:str,booking:Booking,passenger:Passenger,payment:Payment):
+def Loadluggage(pnr:str,luggage_weight:int,limit_weight:int):
+    booking.set_luggage_limit(limit_weight)
+    passenger.set_weight(luggage_weight)
     message = airline.load_luggage(pnr=pnr,
     booking=booking,
     passenger=passenger,
