@@ -1,9 +1,10 @@
-from fastapi import FastAPI
+from fastapi import FastAPI,HTTPException
+from pydantic import BaseModel
 import uvicorn
 
 app = FastAPI()
 
-class Payment:
+class Payment(BaseModel):
     def __init__(self):
         self.__status = "PENDING"
 
@@ -20,9 +21,11 @@ class Payment:
         return self.__status
 
 
-class Passenger:
+class Passenger(BaseModel):
     def __init__(self, first_name: str, luggage_weight: int):
         self.__first_name = first_name
+        if(luggage_weight<0):
+            raise HTTPException(status_code=404,detail="Luggage weight must be more than 0")
         self.__luggage_weight = luggage_weight
 
     def get_weight(self) -> int:
@@ -33,10 +36,12 @@ class Passenger:
         return self.__first_name
 
 
-class Booking:
+class Booking(BaseModel):
     def __init__(self, pnr: str, luggage_limit: int, is_valid: bool=True):
         self.__pnr = pnr
         self.__is_valid = is_valid
+        if(luggage_limit<0):
+            raise HTTPException(status_code=404,detail="Luggage limit must be more than 0")
         self.__luggage_limit = luggage_limit
 
     def validate_booking(self, pnr: str) -> bool:
@@ -50,8 +55,8 @@ class Airline:
     def __init__(self):
         self.__extra_fee_per_kg = 500  # บาท / กิโล
 
-    def verify_weight(self,booking:Booking,passenger:Passenger):
-        if(passenger.get_weight()<=booking.get_luggage_limit()):
+    def verify_weight(self,weight_limit:int,passenger:Passenger):
+        if(passenger.get_weight()<=weight_limit):
             return True
         return False
 
@@ -63,8 +68,9 @@ class Airline:
         if not booking.validate_booking(pnr):
             return "Error: Invalid booking"
 
+        weight_limit = booking.get_luggage_limit()
         # 2. verify luggage weight
-        if self.verify_weight(booking,passenger):
+        if self.verify_weight(weight_limit,passenger):
             return {"name":passenger.get_name(),
            "luggage_weight":passenger.get_weight(),
            "limitweight":booking.get_luggage_limit(),
@@ -99,10 +105,9 @@ payment = Payment()
 def home():
     return {"message":"Welcome to KNNS Airways"}
 
-@app.get("/loadluggage")
-def Loadluggage(weight:int):
-    passenger.set_weight(weight)
-    message = airline.load_luggage(pnr="ABC123",
+@app.post("/loadluggage")
+def Loadluggage(pnr:str,booking:Booking,passenger:Passenger,payment:Payment):
+    message = airline.load_luggage(pnr=pnr,
     booking=booking,
     passenger=passenger,
     payment=payment
@@ -110,4 +115,4 @@ def Loadluggage(weight:int):
     return message
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=8000, log_level="info")
+    uvicorn.run("05LoadbagWithAPI:app", host="127.0.0.1", port=8000, log_level="info")
