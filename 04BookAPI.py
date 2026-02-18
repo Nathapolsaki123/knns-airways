@@ -1,6 +1,9 @@
 from datetime import datetime
-import uuid
+from fastapi import FastAPI
+from pydantic import BaseModel
+import uvicorn
 
+app = FastAPI()
 
 class Passenger:
     def __init__(self, passenger_id: str, first_name: str, last_name: str):
@@ -120,7 +123,7 @@ class AirlineController:
         else:
             return False
     
-    
+
     def booking(self,pnr: str, name: str, flight_no: str, seatType: str, seatAmount: int, dateTime: str):
         received_flight = self.find_flight(flight_no)
         if received_flight == False:
@@ -142,6 +145,31 @@ class AirlineController:
                         currentBook.confirm()
                         self.__currentPassenger.add_point(100)
 
+airline_system = AirlineController("Thai Airways")
+payment = Payment()
+
+# 2. Create Dummy Data
+flight1 = Flight("TG101", "Bangkok", "Tokyo", "2024-05-20")
+passenger1 = Passenger("12345", "Somsak", "Jaidee")
+
+# 3. Add Data to Controller
+airline_system.add_Flight(flight1)
+airline_system.add_passenger(passenger1)
+
+# 4. Simulate Login (Required because booking() uses self.__currentPassenger)
+airline_system.login("12345")
+
+@app.post("/booking/{pnr}/{name}/{flight_no}/{seatType}/{seatAmount}/{dateTime}")
+def bookings(pnr:str, name:str, flight_no:str, seatType:str, seatAmount:str, dateTime:str):
+    try :
+        airline_system.booking(pnr, name, flight_no, seatType, seatAmount, dateTime)
+        return {"name" : name,"flight_no" : flight_no, "seatType" : seatType, "seatAmount" : seatAmount, "dateTime" : dateTime}
+    except Exception as e :
+        return f"error {e} "
+
+payment = Payment()
+
 
 if __name__ == "__main__":
-    payment = Payment()
+    uvicorn.run("04BookAPI:app", host="127.0.0.1", port=8000, log_level="info")
+
