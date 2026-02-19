@@ -26,7 +26,7 @@ class Booking:
         self.__payment = Payment() ## เพิ่มข่องทางการชำระเงิน
         self.__flight = None ##Flight
 
-    def validate(self) -> bool:
+    def check_status(self) -> bool:
         return self.__booking_status == BookingStatus.CONFIRMED and self.__payment_status == PaymentStatus.PAID
 
     def update_status(self, booking_status: BookingStatus, payment_status : PaymentStatus):
@@ -60,6 +60,7 @@ class Passenger:
     def get_refund_total(self): return self.__refund_total
     def add_refund_total (self): self.__refund_total+=1
     def booking_request(self):pass
+    def check_refund_total(self): return 0 <= self.__refund_total < 3
 
 
 class Payment:
@@ -77,23 +78,6 @@ class Payment:
     
     def validate(self)->bool:
         return True
-
-
-class FinanceOfficer:
-    #init
-    def __init__(self):
-        self.__staff_id = None
-        self.__name = None
-        self.__position = None
- 
-    def approve_refund(self,passenger:Passenger, booking: Booking, amount: float) -> bool:
-        if self.validate (passenger): 
-            print("FinanceOfficer: refund approved") 
-            return True
-        return False
-    
-    def validate(self,passenger) -> bool:
-        return passenger.get_refund_total() <3 and passenger.get_refund_total() >= 0
     
 class Flight :
     def __init__ (self,airplane : str,flight_no : str, oirgin : str, destination : str):
@@ -116,7 +100,6 @@ class Airline:
         self.__airplane = None #[]
         self.__is_active = None #bool
         self.__passenger = []
-        self.__finance_officer = FinanceOfficer() #ควรแยกเป็น starf start ไหม
         self.__blacklist = []
         self.__flight = []
 
@@ -128,15 +111,12 @@ class Airline:
         passenger = self.find_passenger_by_pnr (pnr)
 
         # 1. Validate booking
-        if not booking.validate():
-            raise Exception("Invalid or non-refundable booking")
+        if not booking.check_status():
+            raise Exception("Status Invalid")
 
-        # 2. Finance approval
-
-        if not self.__finance_officer.approve_refund(
-            passenger, booking, booking.get_amount()
-        ):
-            raise Exception("Refund rejected by finance")
+        # 2. Validate passenger
+        if not passenger.check_refund_total():
+            raise Exception("Reach Maximum Refund or System Error")
 
         # 3. Process refund
         if not booking.get_payment().refund(
