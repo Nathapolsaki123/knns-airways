@@ -1,7 +1,14 @@
 from fastapi import FastAPI,HTTPException
 import uvicorn
+from abc import ABC,abstractmethod
 
 app = FastAPI()
+
+class Payment(ABC):
+
+    @abstractmethod
+    def pay(self):
+        pass
 
 class Booking:
     def __init__(self, pnr: str, seat_class :str):
@@ -45,7 +52,7 @@ class Subtransaction:
     def get_data(self):
         return {self.__name:self.__amount}
 
-class Card:
+class Card(Payment):
     def __init__(self,card_no:str,amount:float):
         self.__card_no = card_no
         self.__amount = amount
@@ -167,8 +174,8 @@ class Airline:
     def __calculate_extra_weight_fee(self, extra_weight: int) -> int:
         return extra_weight * self.__extra_fee_per_kg
     
-    def payment_process(self,card:Card,fee:int):
-        card.pay(fee)
+    def payment_process(self,channel,fee:int):
+        channel.pay(fee)
         return True
 
 
