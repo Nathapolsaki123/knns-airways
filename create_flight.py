@@ -1,8 +1,47 @@
 from fastapi import FastAPI,HTTPException
 import uvicorn
 from datetime import date,datetime,timedelta
+from abc import ABC,abstractmethod
 
 app = FastAPI()
+
+class Seat(ABC):
+
+    @abstractmethod
+    def get_seat_type(self):
+        pass
+
+    @abstractmethod
+    def get_seat_no(self):
+        pass
+
+
+
+class EconomySeat(Seat):
+    def __init__(self,seat_no):
+        self.__seat_no = seat_no
+        self.__seat_type = "Economy"
+
+    def get_seat_type(self):
+        return self.__seat_type
+    
+    def get_seat_no(self):
+        return self.__seat_no
+    
+
+
+class BusinessSeat(Seat):
+    def __init__(self,seat_no):
+        self.__seat_no = seat_no
+        self.__seat_type = "Business"
+
+    def get_seat_type(self):
+        return self.__seat_type
+    
+    def get_seat_no(self):
+        return self.__seat_no
+
+
 
 class Airline:
     def __init__(self):
@@ -58,10 +97,14 @@ class Airline:
         flight.create_flight_instance(airplane,origin,target,depart_time,arrive_time)
         airplane.set_status(False)
         return "Create Flight Success"
+    
+
+
 class Airplane:
     def __init__(self,airplane_no):
         self.__airplane_no = airplane_no
         self.__status = True
+        self.__seat_layout:list = []
 
     def get_airplane_no(self):
         return self.__airplane_no
@@ -71,6 +114,43 @@ class Airplane:
     
     def set_status(self,status:bool):
         self.__status = status
+
+    def get_seat_layout(self):
+        return self.__seat_layout
+
+    def get_seat_data(self,seat_type=None)->list:
+        seat_list = []
+        if seat_type == None:
+            for seat in self.__seat_layout:
+                seat_list.append(seat.get_seat_no())
+            return seat_list
+        if seat_type == "Economy":
+            for seat in self.__seat_layout:
+                if seat.get_seat_type == "Economy":
+                    seat_list.append(seat.get_seat_no())
+            return seat_list
+        if seat_type == None:
+            for seat in self.__seat_layout:
+                if seat.get_seat_type == "Business":
+                    seat_list.append(seat.get_seat_no())
+            return seat_list
+
+    def add_seat_for_new_plane(self,business_seat,economy_seat):
+        self.__seat_layout.clear()
+        for b in range(business_seat):
+            temp_seat = self.create_business_seat(f"B{b+1}")
+            self.__seat_layout.append(temp_seat)
+
+        for e in range(economy_seat):
+            temp_seat = self.create_economy_seat(f"E{e+1}")
+            self.__seat_layout.append(temp_seat)
+
+    def create_economy_seat(self,seat_no):
+        return EconomySeat(seat_no)
+    
+    def create_business_seat(self,seat_no):
+        return BusinessSeat(seat_no)
+
 
 
 class Flight:
@@ -89,17 +169,22 @@ class Flight:
     def get_flight_instance_list(self):
         return self.__instance_list
 
+
 class Flight_instance:
     def __init__(self,flight_no,origin,target,depart_time,arrive_time):
         self.__flight_no = flight_no
         self.__airplane = None
+        self.__price = 10000
         self.__origin = origin
         self.__target = target
         self.__depart_time = depart_time
         self.__arrive_time = arrive_time
+        self.__remaining_seat:list = []
+        self.__reserved_seat:list = []
     
     def add_airplane(self,airplane:Airplane):
         self.__airplane = airplane
+        self.__remaining_seat = self.__airplane.get_seat_layout()
     
     def calculate_flight_time(self):
         start = datetime.strptime(self.__depart_time,'%d/%m/%Y %H:%M')
@@ -122,12 +207,50 @@ class Flight_instance:
     def get_depart_time(self):
         return self.__depart_time
     
+    def get_reserved_seat(self):
+        return self.__reserved_seat
+    
+
+    def get_seat_remaining(self,seat_type=None)->list:
+        seat_list = []
+        if seat_type == None:
+            for seat in self.__remaining_seat:
+                seat_list.append(seat.get_seat_no())
+            return seat_list
+        if seat_type == "Economy":
+            for seat in self.__remaining_seat:
+                if seat.get_seat_type == "Economy":
+                    seat_list.append(seat.get_seat_no())
+            return seat_list
+        if seat_type == None:
+            for seat in self.__remaining_seat:
+                if seat.get_seat_type == "Business":
+                    seat_list.append(seat.get_seat_no())
+            return seat_list
+        
+    def search_seat(self,seat_no):
+        for seat in self.__reserved_seat:
+            if seat.get_seat_no() == seat_no:
+                raise HTTPException(status_code=404,detail="Seat Unavailable")
+        for seat in self.__remaining_seat:
+            if seat.get_seat_no() == seat_no:
+                return seat
+        return None
+    
+    def select_seat(self,seat_no)->bool:
+        selected_seat = self.search_seat(seat_no)
+        if selected_seat != None:
+            self.__remaining_seat.remove(selected_seat)
+            self.__reserved_seat.append(selected_seat)
+            return "Select Seat Success"
+        raise HTTPException(status_code=404,detail="Seat Not Found")
 
 airline = Airline()
 airplane = Airplane("AB1234")
 flight = Flight("TG911")
 airline.add_flight(flight)
 airline.add_airplane(airplane)
+airplane.add_seat_for_new_plane(10,50)
 
 # result = airline.create_flight("TG911","AB1234","BKK","CNX","23/02/2026 12:00","23/02/2026 13:20")
 # print(result)
@@ -140,7 +263,14 @@ def home():
 @app.post("/create_flight")
 def create_flight(flight_no,airplane_no,origin,target,depart_time,arrive_time):
     result = airline.create_flight(flight_no,airplane_no,origin,target,depart_time,arrive_time)
-    return {"message":result,"info":airline.search_flight_instance(flight_no,depart_time).get_flight_data()}
+    return {"message":result,"info":airline.search_flight_instance(flight_no,depart_time).get_flight_data()
+            ,"seat_layout":airplane.get_seat_data()}
+
+@app.post("/select_seat")
+def select_seat(flight_no, depart_time, seat_no):
+    flight_instance = airline.search_flight_instance(flight_no,depart_time)
+    result = flight_instance.select_seat(seat_no)
+    return {"message":result}
 
 if __name__ == "__main__":
     uvicorn.run("create_flight:app", host = "127.0.0.1" ,port=8000, log_level="info")
