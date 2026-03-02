@@ -25,10 +25,14 @@ def getBookkingStatus (pnr:str):
         return f"Error occurred: {e}"
 
 def create_system () :
+    airline = Airline("KNNS airways","Thailand")
     passenger = Passenger("John", "Doe")
-    booking = Booking("PNR123", 5000.0)
+    booking = Booking("PNR123", 5000.0, "Bussiness" )
+    flight = Flight("Boeig747","123","Bangkok","Chaingmai")
+    booking.add_flight (flight)
     passenger.add_booking (booking)
     airline.add_passenger (passenger)
+    airline.request_refund("PNR123")
 
 create_system ()
 
