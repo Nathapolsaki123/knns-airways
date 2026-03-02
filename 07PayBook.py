@@ -4,6 +4,7 @@ from pydantic import BaseModel
 import uvicorn
 import random
 
+
 app = FastAPI()
 
 class Passenger:
@@ -12,15 +13,28 @@ class Passenger:
         self.__first_name = first_name
         self.__last_name = last_name
         self.__book_list = []
+        self.__card = None
 
     def get_passenger_id(self):
         return self.__passenger_id
 
     def add_book(self,book):
         self.__book_list.append(book)
+    
+    def add_card(self,card):
+        self.__card = card
 
     def get_passenger_name(self):
         return self.__first_name
+    
+    def get_book_by_pnr(self, pnr):
+        for b in self.__book_list:
+            if b.get_pnr() == pnr:
+                return b
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Did not find book with pnr {pnr} in id {self.__passenger_id}"
+        )
     
     def get_book_list(self):
         count = 1
@@ -30,11 +44,27 @@ class Passenger:
             count+=1
         return all_book
     
-
-class Silver(Passenger):
+class Member(Passenger):
     def __init__(self, passenger_id: str, first_name: str, last_name: str):
         super().__init__(passenger_id, first_name, last_name)
-        self.__discount = 0.9
+        self.__point = 0
+
+
+class Card:
+    def __init__(self,pin,amount):
+        self.__pin = pin
+        self.__amount = amount
+    
+    def get_pin(self):
+        return self.__pin
+    
+    def get_amount(self):
+        return self.__amount
+    
+class Guest(Passenger):
+    def __init__(self, passenger_id: str, first_name: str, last_name: str):
+        super().__init__(passenger_id, first_name, last_name)
+        self.__discount = 1
         self.__max_weight = 10
     
     def get_discount(self):
@@ -43,12 +73,10 @@ class Silver(Passenger):
     def get_max_weight(self):
         return self.__max_weight
     
-
-
-class Gold(Passenger):
+class Silver(Member):
     def __init__(self, passenger_id: str, first_name: str, last_name: str):
         super().__init__(passenger_id, first_name, last_name)
-        self.__discount = 0.8
+        self.__discount = 0.9
         self.__max_weight = 20
     
     def get_discount(self):
@@ -56,6 +84,46 @@ class Gold(Passenger):
 
     def get_max_weight(self):
         return self.__max_weight
+    
+
+
+class Gold(Member):
+    def __init__(self, passenger_id: str, first_name: str, last_name: str):
+        super().__init__(passenger_id, first_name, last_name)
+        self.__discount = 0.8
+        self.__max_weight = 30
+    
+    def get_discount(self):
+        return self.__discount
+
+    def get_max_weight(self):
+        return self.__max_weight
+    
+class Payment:
+    def get_payment_type(self, payment_type):
+        for cls in Payment.__subclasses__():
+            if cls.identifier == payment_type:
+                return cls() # Instantiate and return
+            
+        raise HTTPException(
+            status_code=404,
+            detail=f"Payment method invalid"
+            )
+
+class PayByCard(Payment):
+    identifier = "PayByCard"
+    def validate(self,received_book, validate_object=None):
+        received_book.get
+
+class PayBypoint(Payment):
+    identifier = "PayByPoint"
+    def validate(self,received_book, validate_object=None):
+        #unfinish
+        
+
+class Transaction:
+    def __init__(self):
+        self.__sub_transaction = []
 
 class Flight:
     def __init__(self, flight_no: str):
@@ -139,11 +207,12 @@ class Book:
         self.__booking_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.__max_weight = max_weight
         self.__fare = price
+        self.__Transaction = None
 
     def get_data(self):
         return {
                 "pnr": self.__pnr,
-                "passenger": self.__passenger.get_passenger_name(),
+                "passenger": self.__passenger.get_passenger_name(),                
                 "flight_no": self.__flight_instance.get_flight_no(),
                 "seat_type": self.__seat_type,
                 "seat_amount": self.__seat_amount,
@@ -218,6 +287,24 @@ class AirlineController:
 
         fare = (flight_price+(seat_cost*seat_amount))*discount
         return fare
+    
+    def pay_book(self,id: str, pnr: str, payment_method: str, validate_object: str = None):
+        received_passenger = self.find_passenger(id)
+        received_book = received_passenger.find_book_by_pnr(pnr)
+
+        is_member = issubclass(received_passenger, Member)
+
+        if (not is_member and payment_method == "PayByPoint") == True:
+            raise HTTPException(
+                status_code=404,
+                detail=f"You cannot pay by point if you are not a member"
+                )
+
+        payment_type = payment_system.get_payment_type(payment_method)
+
+        payment_type.validate(received_book, validate_object)
+
+
 
     def booking(self,id: str, flight_no: str, arrival_time: str, departure_time: str, seat_type: str, seat_amount: int, ):
         received_passenger = self.find_passenger(id)
@@ -240,10 +327,13 @@ class AirlineController:
         return new_book
 
 airline_system = AirlineController("Thai Airways")
+payment_system = Payment()
 
 # 2. Create Dummy Data
 passenger1 = Silver("12345", "Somsak", "Jaidee")
+card1 = Card(123,1000)
 passenger2 = Gold("54321", "Sexski", "taobin")
+card2 = Card(456,2000)
 airplane1 = Airplane("B001",20,20)
 airplane2 = Airplane("B002",30,10)
 airplane3 = Airplane("B003",1,2)
@@ -263,8 +353,11 @@ airline_system.add_Flight(flight2)
 airline_system.add_passenger(passenger1)
 airline_system.add_passenger(passenger2)
 
+passenger1.add_card(card1)
+passenger2.add_card(card2)
 
-@app.post("/booking/{id}/{flight_no}/{arrival_time}/{departure_time}/{seat_type}/{seat_amount}/")
+
+@app.post("/booking/{id}/{flight_no}/{arrival_time}/{departure_time}/{seat_type}/{seat_amount}")
 def bookings(id:str, flight_no:str, arrival_time:str, departure_time:str, seat_type:str, seat_amount:int):
     new_book = airline_system.booking(id, flight_no, arrival_time, departure_time, seat_type, seat_amount)
     info = new_book.get_data()
@@ -275,7 +368,13 @@ def get_book_list(id:str):
     passenger = airline_system.find_passenger(id)
     return {"All Book" : passenger.get_book_list()}
 
+@app.post("/pay_book/{id}/{pnr}/{payment_method}/{amount}/{validate_object}")
+def bookings(id:str, pnr:str, payment_method:str, validate_object:str):
+    airline_system.pay_book(id, pnr, payment_method, validate_object)
+    info = new_book.get_data()
+    return {"Message":"Success","info":info}
+
 
 if __name__ == "__main__":
-    uvicorn.run("04BookAPI:app", host="127.0.0.1", port=8000, log_level="info")
+    uvicorn.run("07PayBook:app", host="127.0.0.1", port=8000, log_level="info")
 
