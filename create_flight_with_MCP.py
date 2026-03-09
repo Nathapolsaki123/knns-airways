@@ -388,5 +388,4 @@ def show_all_flight_instance():
 #     uvicorn.run("create_flight_with_MCP:app", host = "127.0.0.1" ,port=8000, log_level="info")
 
 if __name__ == "__main__":
-    print(f"Registered tools: {mcp.get_tools()}")
     mcp.run()
