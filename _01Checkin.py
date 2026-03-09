@@ -12,6 +12,7 @@ class BookingStatus(Enum):
     CHECKEDIN = "CHECKEDIN"
     CANCELED = "CANCELED"
     NOSHOW = "NOSHOW"
+    COMPLETED = "COMPLETED"
 
 
 class PaymentStatus(Enum):
@@ -83,6 +84,10 @@ class Passenger:
     @property
     def passenger_id(self):
         return self.__passenger_id
+    
+    @property
+    def name(self):
+        return self.__name
 
     def add_booking(self, booking):
         self.__booking_list.append(booking)
@@ -351,9 +356,9 @@ class Airline:
         if current_booking.booking_status == BookingStatus.CHECKEDIN:
             raise Exception("You have already checked in.")
         elif current_booking.booking_status == BookingStatus.PENDING:
-            raise Exception("Your booking doesn't been paid yet.")
+            raise Exception("Your booking has not been paid yet.")
         elif current_booking.booking_status == BookingStatus.CANCELED or current_booking.booking_status == BookingStatus.NOSHOW:
-            raise Exception("This booking are not be able to check-in.")
+            raise Exception("This booking cannot check in.")
         elif current_booking.booking_status == BookingStatus.CONFIRMED:
             current_flight = current_booking.flight_instance
             if current_flight == None:
@@ -390,10 +395,12 @@ class Airline:
         
         if current_booking.booking_status == BookingStatus.CONFIRMED:
             raise Exception("Please check-in first.")
+        elif current_booking.booking_status == BookingStatus.COMPLETED:
+            raise Exception("You have already chosen seats.")
         elif current_booking.booking_status == BookingStatus.PENDING:
-            raise Exception("Your booking doesn't been paid yet.")
+            raise Exception("Your booking has not been paid yet.")
         elif current_booking.booking_status == BookingStatus.CANCELED or current_booking.booking_status == BookingStatus.NOSHOW:
-            raise Exception("This booking are not be able to check-in.")
+            raise Exception("This booking cannot check in.")
         elif current_booking.booking_status == BookingStatus.CHECKEDIN:
             current_flight = current_booking.flight_instance
             if current_flight == None:
@@ -419,7 +426,7 @@ class Airline:
                 ticket = Ticket(current_passenger,current_flight,seat)
                 current_booking.add_ticket(ticket)
                 created_tickets.append(ticket)
-
+            current_booking.update_booking_status(BookingStatus.COMPLETED)
             return created_tickets
         else:
             raise Exception("Invalid Booking Status")
@@ -459,7 +466,7 @@ class Airline:
                 invalid.append(part)
                 continue
 
-            # ⭐ detect duplicate
+            # detect duplicate
             if seat_code in chosen:
                 duplicates.append(seat_code)
                 continue
@@ -638,10 +645,21 @@ if __name__ == "__main__":
         print(t)
 
     # ==========================================
-    # TEST 11 : Seat already taken
+    # TEST 11 : Choose seat again after completed
     # ==========================================
 
-    print("\nTEST11 : Seat already taken")
+    print("\nTEST11 : Choose seat again after completed")
+
+    try:
+        airline.choose_seat("P001","PNR001","A03,A04")
+    except Exception as e:
+        print("Expected Error:",e)
+
+    # ==========================================
+    # TEST 12 : Seat already taken
+    # ==========================================
+
+    print("\nTEST12 : Seat already taken")
 
     booking2 = Booking("PNR002",p2,flight,"Economy",1)
     p2.add_booking(booking2)
@@ -657,10 +675,10 @@ if __name__ == "__main__":
         print("Expected Error:",e)
 
     # ==========================================
-    # TEST 12 : Valid seat for second passenger
+    # TEST 13 : Valid seat for second passenger
     # ==========================================
 
-    print("\nTEST12 : Valid seat for passenger2")
+    print("\nTEST13 : Valid seat for passenger2")
 
     tickets = airline.choose_seat("P002","PNR002","A03")
 

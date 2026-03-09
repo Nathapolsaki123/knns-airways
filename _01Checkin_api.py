@@ -57,9 +57,15 @@ def open_checkin():
 
 # ดูที่นั่งว่าง
 @app.get("/flight/seats")
-def available_seats():
+def available_seats(seat_class:str=None):
+
+    if seat_class:
+        seats = flight.get_available_seat(seat_class)
+    else:
+        seats = flight.remaining_seat_list
+
     return {
-        "available_seats":[s.seat_no for s in flight.remaining_seat_list]
+        "available_seats":[s.seat_no for s in seats]
     }
 
 # check-in
@@ -68,23 +74,35 @@ def checkin(passenger_id:str, pnr:str):
 
     try:
         airline.check_in_passenger(passenger_id,pnr)
-        return {"message":"Check-in success"}
+
+        seats = flight.get_available_seat("Economy")
+
+        return {
+            "message":"Check-in success",
+            "available_seats":[s.seat_no for s in seats]
+        }
 
     except Exception as e:
         raise HTTPException(status_code=400,detail=str(e))
 
-
 # เลือกที่นั่ง
 @app.post("/choose-seat")
 def choose_seat(passenger_id:str, pnr:str, seats:str):
-
     try:
         tickets = airline.choose_seat(passenger_id,pnr,seats)
-
         return {
-            "tickets":[str(t) for t in tickets]
+            "tickets":[
+                {
+                    "flight":t._Ticket__flight_no,
+                    "passenger":t._Ticket__passenger.name,
+                    "origin":t._Ticket__origin,
+                    "destination":t._Ticket__destination,
+                    "departure":t._Ticket__departure_time,
+                    "seat":t._Ticket__seat.seat_no
+                }
+                for t in tickets
+            ]
         }
-
     except Exception as e:
         raise HTTPException(status_code=400,detail=str(e))
 
