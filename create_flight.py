@@ -2,6 +2,7 @@ from fastapi import FastAPI,HTTPException
 import uvicorn
 from datetime import date,datetime,timedelta
 from abc import ABC,abstractmethod
+import random
 
 app = FastAPI()
 
@@ -44,12 +45,14 @@ class BusinessSeat(Seat):
 
 
 class Airline:
-    def __init__(self):
-        self.__flight_list:list = []
+    def __init__(self,name):
+        self.__name = name
+        self.__passenger_list:list = []
+        self.__booking_list:list = []
         self.__airplane_list:list = []
-
-    def add_flight(self,flight):
-        self.__flight_list.append(flight)
+        self.__flight_list:list = []
+        self.__blacklist:list = []
+        self.__flightfood_list:list = []
 
     def add_airplane(self,airplane):
         self.__airplane_list.append(airplane)
@@ -75,7 +78,11 @@ class Airline:
                 raise HTTPException(status_code=404,detail="Instance Not Found")
         raise HTTPException(status_code=404,detail="Flight Not Found")
     
-    def create_flight(self,flight_no,airplane_no,origin,target,depart_time,arrive_time):
+    def create_flight(self,flight_no,origin,target):
+        flight = Flight(flight_no ,origin,target)
+        self.__flight_list.append(flight)
+    
+    def create_flight_instance(self,flight_no,airplane_no,depart_time,arrive_time):
         try:
             datetime.strptime(depart_time,'%d/%m/%Y %H:%M')
             datetime.strptime(arrive_time,'%d/%m/%Y %H:%M')
@@ -84,9 +91,8 @@ class Airline:
         
         flight = self.search_flight(flight_no)
         if not(flight):
-            flight = Flight(flight_no)
-            self.__flight_list.append(flight)
-
+            raise HTTPException(status_code=404,detail="Flight Number Not Found")
+        
         airplane = self.search_airplane(airplane_no)
         if not(airplane):
             raise HTTPException(status_code=404,detail="Airplane Not Found")
@@ -94,20 +100,42 @@ class Airline:
         if not(airplane.get_status()):
             raise HTTPException(status_code=404,detail="Airplane Unavailable")
         
-        flight.create_flight_instance(airplane,origin,target,depart_time,arrive_time)
+        flight_instance = flight.create_flight_instance(airplane,depart_time,arrive_time)
         airplane.set_status(False)
+
+        self.add_flightfood_to_flight_instance(flight_instance)
+
         return "Create Flight Success"
+    
+    def add_flightfood_to_flight_instance(self,flight_instance):
+
+        foodlen = len(self.__flightfood_list)
+        if foodlen <1 :
+            raise HTTPException(status_code=404,detail="FlightFood Not Found")
+        
+        while(len(flight_instance.get_food_list())<flight_instance.FOOD_IN_FLIGHT):
+            index = random.randint(0,foodlen-1)
+            if not (self.__flightfood_list[index] in flight_instance.get_food_list()):
+                flight_instance.add_flightfood(self.__flightfood_list[index])
+    
+    def create_flightfood(self,name,price):
+        food = FlightFood(name,price)
+        self.__flightfood_list.append(food)
     
 
 
 class Airplane:
-    def __init__(self,airplane_no):
-        self.__airplane_no = airplane_no
+    def __init__(self,model, airplane_no,economy_seat,business_seat):
+        self.__model_number = model
+        self.__registration_no = airplane_no
         self.__status = True
+        self.__economy_seat_amount = economy_seat
+        self.__business_seat_amount =business_seat
         self.__seat_layout:list = []
+        self.add_seat_for_new_plane(economy_seat,business_seat)
 
     def get_airplane_no(self):
-        return self.__airplane_no
+        return self.__registration_no
     
     def get_status(self):
         return self.__status
@@ -118,33 +146,23 @@ class Airplane:
     def get_seat_layout(self):
         return self.__seat_layout
 
-    def get_seat_data(self,seat_type=None)->list:
-        seat_list = []
-        if seat_type == None:
-            for seat in self.__seat_layout:
-                seat_list.append(seat.get_seat_no())
-            return seat_list
-        if seat_type == "Economy":
-            for seat in self.__seat_layout:
-                if seat.get_seat_type == "Economy":
-                    seat_list.append(seat.get_seat_no())
-            return seat_list
-        if seat_type == None:
-            for seat in self.__seat_layout:
-                if seat.get_seat_type == "Business":
-                    seat_list.append(seat.get_seat_no())
-            return seat_list
-
-    def add_seat_for_new_plane(self,business_seat,economy_seat):
+    def add_seat_for_new_plane(self,economy_seat,business_seat):
         self.__seat_layout.clear()
-        for b in range(business_seat):
-            temp_seat = self.create_business_seat(f"B{b+1}")
-            self.__seat_layout.append(temp_seat)
+        for b in range(1,business_seat+1):
+            if b<10:
+                temp_seat = self.create_business_seat(f"B0{b}")
+                self.__seat_layout.append(temp_seat)
+            else:
+                temp_seat = self.create_business_seat(f"B{b}")
+                self.__seat_layout.append(temp_seat)
 
-        for e in range(economy_seat):
-            temp_seat = self.create_economy_seat(f"E{e+1}")
-            self.__seat_layout.append(temp_seat)
-
+        for e in range(1,economy_seat+1):
+            if e<10:
+                temp_seat = self.create_economy_seat(f"E0{e}")
+                self.__seat_layout.append(temp_seat)
+            else:
+                temp_seat = self.create_economy_seat(f"E{e}")
+                self.__seat_layout.append(temp_seat)
     def create_economy_seat(self,seat_no):
         return EconomySeat(seat_no)
     
@@ -154,37 +172,80 @@ class Airplane:
 
 
 class Flight:
-    def __init__(self,flight_no:str):
+    def __init__(self,flight_no:str, origin:str, target:str):
         self.__flight_no = flight_no
+        self.__target = target
+        self.__origin = origin
         self.__instance_list:list = []
 
-    def create_flight_instance(self,airplane,origin,target,depart_time,arrive_time):
-        flight_instance = Flight_instance(self.__flight_no,origin,target,depart_time,arrive_time)
+    def create_flight_instance(self,airplane,depart_time,arrive_time):
+        flight_instance = FlightInstance(self.__flight_no,depart_time,arrive_time)
         flight_instance.add_airplane(airplane)
         self.__instance_list.append(flight_instance)
+        return flight_instance
 
     def get_flight_no(self):
         return self.__flight_no
     
     def get_flight_instance_list(self):
         return self.__instance_list
+    
+    def get_flight_data(self):
+        return {"Flight_no":self.__flight_no
+                ,"Origin":self.__origin
+                ,"Target":self.__target
+                }
 
 
-class Flight_instance:
-    def __init__(self,flight_no,origin,target,depart_time,arrive_time):
+class FlightInstance:
+
+    FOOD_IN_FLIGHT = 3
+
+    def __init__(self,flight_no,depart_time,arrive_time):
         self.__flight_no = flight_no
         self.__airplane = None
         self.__price = 10000
-        self.__origin = origin
-        self.__target = target
         self.__depart_time = depart_time
         self.__arrive_time = arrive_time
+        self.__economy_seat_available = 0
+        self.__business_seat_available = 0
         self.__remaining_seat:list = []
-        self.__reserved_seat:list = []
+        self.__assigned_seat:list = []
+        self.__food_list:list = []
+        self.__flight_status = None
     
     def add_airplane(self,airplane:Airplane):
         self.__airplane = airplane
         self.__remaining_seat = self.__airplane.get_seat_layout()
+        self.__economy_seat_available = len(self.get_remaining_seat("Economy"))
+        self.__business_seat_available = len(self.get_remaining_seat("Business"))
+
+    def add_flightfood(self,flightfood):
+        self.__food_list.append(flightfood)
+
+    def reserve_seat(self,type):
+        if type == "Economy":
+            self.__economy_seat_available-=1
+        elif type == "Business":
+            self.__business_seat_available-=1
+
+    def get_amount_seat(self,type):
+        if type == "Economy":
+            return self.__economy_seat_available
+        elif type == "Business":
+            return self.__business_seat_available
+        
+    def get_food_list(self):
+        return self.__food_list
+        
+    def show_flightfood(self):
+        foodlist = []
+        for food in self.__food_list:
+            foodlist.append(food.get_name())
+        return foodlist
+
+    def change_flight_status(self,status):
+        self.__flight_status = status
     
     def calculate_flight_time(self):
         start = datetime.strptime(self.__depart_time,'%d/%m/%Y %H:%M')
@@ -196,9 +257,7 @@ class Flight_instance:
     
 
     def get_flight_data(self):
-        return {"Flight_no":self.__flight_no,
-                "Origin":self.__origin,
-                "Target":self.__target,
+        return {"Flight_data":airline.search_flight(self.__flight_no).get_flight_data(),
                 "Depart_time":self.__depart_time,
                 "Arrive_time":self.__arrive_time,
                 "Flight_time":self.calculate_flight_time()
@@ -207,11 +266,11 @@ class Flight_instance:
     def get_depart_time(self):
         return self.__depart_time
     
-    def get_reserved_seat(self):
-        return self.__reserved_seat
+    def get_assigned_seat(self):
+        return self.__assigned_seat
     
 
-    def get_seat_remaining(self,seat_type=None)->list:
+    def get_remaining_seat(self,seat_type=None)->list:
         seat_list = []
         if seat_type == None:
             for seat in self.__remaining_seat:
@@ -219,58 +278,76 @@ class Flight_instance:
             return seat_list
         if seat_type == "Economy":
             for seat in self.__remaining_seat:
-                if seat.get_seat_type == "Economy":
+                if seat.get_seat_type() == "Economy":
                     seat_list.append(seat.get_seat_no())
             return seat_list
-        if seat_type == None:
+        if seat_type == "Business":
             for seat in self.__remaining_seat:
-                if seat.get_seat_type == "Business":
+                if seat.get_seat_type() == "Business":
                     seat_list.append(seat.get_seat_no())
             return seat_list
-        
-    def search_seat(self,seat_no):
-        for seat in self.__reserved_seat:
-            if seat.get_seat_no() == seat_no:
-                raise HTTPException(status_code=404,detail="Seat Unavailable")
-        for seat in self.__remaining_seat:
-            if seat.get_seat_no() == seat_no:
-                return seat
-        return None
+        raise HTTPException(status_code=404,detail="Seat Type Error")
+
+
+class FlightFood:
+    def __init__(self,name,price):
+        self.__name = name
+        self.__price = price
+
+    def get_price(self):
+        return self.__price
     
-    def select_seat(self,seat_no)->bool:
-        selected_seat = self.search_seat(seat_no)
-        if selected_seat != None:
-            self.__remaining_seat.remove(selected_seat)
-            self.__reserved_seat.append(selected_seat)
-            return "Select Seat Success"
-        raise HTTPException(status_code=404,detail="Seat Not Found")
+    def get_name(self):
+        return self.__name
+    
+# --- เริ่มการจำลองข้อมูล (Mock Data) ---
+airline = Airline("KNNS Airways")
+# 1. สร้างเครื่องบิน (รุ่น, ทะเบียน, ที่นั่งประหยัด, ที่นั่งธุรกิจ)
+airplane1 = Airplane("Airbus A320", "AB1234", 10, 5)
+airplane2 = Airplane("Boeing 737", "B737-88", 20, 10)
+airplane3 = Airplane("Airbus A350", "A350-99", 50, 20)
 
-airline = Airline()
-airplane = Airplane("AB1234")
-flight = Flight("TG911")
-airline.add_flight(flight)
-airline.add_airplane(airplane)
-airplane.add_seat_for_new_plane(10,50)
+airline.add_airplane(airplane1)
+airline.add_airplane(airplane2)
+airline.add_airplane(airplane3)
 
-# result = airline.create_flight("TG911","AB1234","BKK","CNX","23/02/2026 12:00","23/02/2026 13:20")
-# print(result)
-# print(airline.search_flight_instance("TG911","23/02/2026 12:00").get_flight_data())
+# 2. สร้างเส้นทางบินหลัก (Flight)
+airline.create_flight("TG911", "BKK", "HKT")  # กรุงเทพ - ภูเก็ต
+airline.create_flight("TG912", "HKT", "BKK")  # ภูเก็ต - กรุงเทพ
+airline.create_flight("KN001", "BKK", "ICN")  # กรุงเทพ - อินชอน (เกาหลี)
+
+# 3. สร้างรายการอาหารเข้าระบบ (เพื่อสุ่มลง Flight Instance)
+food_items = [
+    ("Premium Wagyu Steak", 1200),
+    ("Pad Thai Shrimp", 250),
+    ("Salmon Salad", 450),
+    ("Club Sandwich", 180),
+    ("Green Curry Rice", 300),
+    ("Chocolate Mousse", 150),
+    ("Orange Juice", 80)
+]
+
+for name, price in food_items:
+    airline.create_flightfood(name, price)
+
+# 4. ทดลองสร้าง Flight Instance ไว้ล่วงหน้า 1 รายการ
+airline.create_flight_instance("TG911", "AB1234", "15/03/2026 10:00", "15/03/2026 11:30")
+
+# --- จบการจำลองข้อมูล ---
 
 @app.get("/")
 def home():
     return {"message":"Welcome to KNNS Airways"}
 
 @app.post("/create_flight")
-def create_flight(flight_no,airplane_no,origin,target,depart_time,arrive_time):
-    result = airline.create_flight(flight_no,airplane_no,origin,target,depart_time,arrive_time)
-    return {"message":result,"info":airline.search_flight_instance(flight_no,depart_time).get_flight_data()
-            ,"seat_layout":airplane.get_seat_data()}
-
-@app.post("/select_seat")
-def select_seat(flight_no, depart_time, seat_no):
+def create_flight(flight_no,airplane_no,depart_time,arrive_time):
+    result = airline.create_flight_instance(flight_no,airplane_no,depart_time,arrive_time)
     flight_instance = airline.search_flight_instance(flight_no,depart_time)
-    result = flight_instance.select_seat(seat_no)
-    return {"message":result}
+    return {"Message":result
+            ,"Info":flight_instance.get_flight_data()
+            ,"Amount_seat":{"Economy":flight_instance.get_amount_seat("Economy"),"Business":flight_instance.get_amount_seat("Business")}
+            ,"FlightFood":flight_instance.show_flightfood()
+            ,"seat_layout":flight_instance.get_remaining_seat()}
 
 if __name__ == "__main__":
     uvicorn.run("create_flight:app", host = "127.0.0.1" ,port=8000, log_level="info")
