@@ -118,6 +118,7 @@ class PayByCard(Payment):
 class PayBypoint(Payment):
     identifier = "PayByPoint"
     def validate(self,received_book, validate_object=None):
+        pass
         #unfinish
         
 

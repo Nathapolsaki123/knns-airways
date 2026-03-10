@@ -60,6 +60,9 @@ class Airline:
     def add_airplane(self,airplane):
         self.__airplane_list.append(airplane)
 
+    def get_airplane_list(self):
+        return self.__airplane_list
+
     def search_flight(self,flight_no) ->bool:
         for flight in self.__flight_list:
             if flight.get_flight_no() == flight_no:
@@ -134,6 +137,18 @@ class Airline:
                 instance_list.append(instance.get_flight_instance_data())
             flight_list.append(instance_list)
         return flight_list
+    
+    def update_flight(self,flight_no,old_depart_time,depart_time,arrive_time):
+        try:
+            datetime.strptime(depart_time,'%d-%m-%Y %H:%M')
+            datetime.strptime(arrive_time,'%d-%m-%Y %H:%M')
+            datetime.strptime(old_depart_time,'%d-%m-%Y %H:%M')
+        except:
+            raise HTTPException(status_code=404,detail="Invalid Time")
+        
+        instance = self.search_flight_instance(flight_no,old_depart_time)
+        instance.edit_time(depart_time,arrive_time)
+        return instance
 
 
 class Airplane:
@@ -241,6 +256,10 @@ class FlightInstance:
 
     def add_flightfood(self,flightfood):
         self.__food_list.append(flightfood)
+
+    def edit_time(self,depart_time,arrive_time):
+        self.__depart_time = depart_time
+        self.__arrive_time = arrive_time
 
     def reserve_seat(self,type):
         if type == "Economy":
@@ -352,40 +371,82 @@ for name, price in food_items:
 
 # --- จบการจำลองข้อมูล ---
 
-
 @mcp.tool()
-def create_flight_instance(flight_no,airplane_no,depart_time,arrive_time):
-    """สร้างเที่ยวบิน และ แสดงผล"""
-    result = airline.create_flight_instance(flight_no,airplane_no,depart_time,arrive_time)
-    flight_instance = airline.search_flight_instance(flight_no,depart_time)
-    return {"Message":result
-            ,"Info":flight_instance.get_flight_instance_data()
-            ,"Amount_seat":{"Economy":flight_instance.get_amount_seat("Economy"),"Business":flight_instance.get_amount_seat("Business")}
-            ,"FlightFood":flight_instance.show_flightfood()
-            ,"seat_layout":flight_instance.get_remaining_seat()}
-
-@mcp.tool()
-def create_airplane(model,no,economy_seat:int,bussiness_seat:int):
-    """สร้างเครื่องบิน"""
-    airplane = Airplane(model,no,economy_seat,bussiness_seat)
+def create_airplane(model: str, no: str, economy_seat: int, business_seat: int):
+    """
+    สร้างเครื่องบินลำใหม่ (Airplane) และลงทะเบียนเข้าสู่ระบบของสายการบิน
+    - model: ชื่อรุ่นเครื่องบิน (เช่น 'Airbus A350-800')
+    - no: เลขทะเบียนเครื่องบิน (Registration number เช่น 'AB350-8')
+    - economy_seat: จำนวนที่นั่งชั้นประหยัด
+    - business_seat: จำนวนที่นั่งชั้นธุรกิจ
+    ใช้เครื่องมือนี้เมื่อต้องการเพิ่มเครื่องบินใหม่เข้าระบบก่อนที่จะนำไปสร้างเที่ยวบิน
+    """
+    airplane = Airplane(model, no, economy_seat, business_seat)
     airline.add_airplane(airplane)
     return airplane.get_data()
 
 @mcp.tool()
-def create_flight(flight_no,origin,target):
-    """สร้างเส้นทางการบิน และ แสดงผล ไม่ได้สร้างเครื่องบิน"""
-    flight = airline.create_flight(flight_no,origin,target)
+def create_flight(flight_no: str, origin: str, target: str):
+    """
+    สร้างเส้นทางการบินหลัก (Flight Route) โดยยังไม่ได้ระบุเวลาหรือเครื่องบิน
+    - flight_no: รหัสเที่ยวบิน (เช่น 'TG911')
+    - origin: สนามบินต้นทาง (เช่น 'BKK')
+    - target: สนามบินปลายทาง (เช่น 'HKT')
+    ต้องสร้างเส้นทางบินก่อนเสมอ ถึงจะไปสร้าง Flight Instance (ตารางบินจริง) ได้
+    """
+    flight = airline.create_flight(flight_no, origin, target)
     return flight.get_flight_data()
 
 @mcp.tool()
+def create_flight_instance(flight_no: str, airplane_no: str, depart_time: str, arrive_time: str):
+    """
+    สร้างตารางบินจริง (Flight Instance) โดยการจับคู่เส้นทางบินกับเครื่องบินและกำหนดเวลา
+    - flight_no: รหัสเที่ยวบินที่เคยสร้างไว้แล้ว
+    - airplane_no: เลขทะเบียนเครื่องบินที่ต้องการใช้
+    - depart_time: เวลาออกเดินทาง รูปแบบ 'DD-MM-YYYY HH:MM' (เช่น '15-03-2024 10:30')
+    - arrive_time: เวลาถึงปลายทาง รูปแบบ 'DD-MM-YYYY HH:MM'
+    ใช้เครื่องมือนี้เพื่อกำหนดวันและเวลาที่จะบินจริง
+    """
+    result = airline.create_flight_instance(flight_no, airplane_no, depart_time, arrive_time)
+    flight_instance = airline.search_flight_instance(flight_no, depart_time)
+    return {
+        "Message": result,
+        "Info": flight_instance.get_flight_instance_data(),
+        "Amount_seat": {
+            "Economy": flight_instance.get_amount_seat("Economy"),
+            "Business": flight_instance.get_amount_seat("Business")
+        },
+        "FlightFood": flight_instance.show_flightfood(),
+        "seat_layout": flight_instance.get_remaining_seat()
+    }
+
+@mcp.tool()
+def get_all_airplane():
+    """แสดงรายการเครื่องบินทั้งหมดที่มีในระบบสายการบิน"""
+    # ดึงข้อมูลผ่าน getter โดยตรง
+    all_planes = airline.get_airplane_list()
+    return [plane.get_data() for plane in all_planes]
+
+@mcp.tool()
 def show_all_flight_instance():
-    """แสดงผลเที่ยวบินทั้งหมด"""
+    """
+    แสดงตารางบิน (Flight Instances) ทั้งหมดที่ถูกสร้างขึ้นในระบบ 
+    รวมถึงข้อมูลเวลาเดินทาง และระยะเวลาบิน
+    """
     data = airline.show_flight_instance()
     return data
 
-
-# if __name__ == "__main__":
-#     uvicorn.run("create_flight_with_MCP:app", host = "127.0.0.1" ,port=8000, log_level="info")
+@mcp.tool()
+def edit_flight(flight_no: str, old_depart_time: str, depart_time: str, arrive_time: str):
+    """
+    แก้ไขเวลาเดินทางของเที่ยวบินที่มีอยู่แล้ว
+    - flight_no: รหัสเที่ยวบิน
+    - old_depart_time: เวลาออกเดินทางเดิมที่ต้องการเปลี่ยน (เพื่อระบุตัวเที่ยวบิน)
+    - depart_time: เวลาออกเดินทางใหม่ (DD-MM-YYYY HH:MM)
+    - arrive_time: เวลาถึงปลายทางใหม่ (DD-MM-YYYY HH:MM)
+    """
+    instance = airline.update_flight(flight_no, old_depart_time, depart_time, arrive_time)
+    return {"Info": instance.get_flight_instance_data()}
 
 if __name__ == "__main__":
     mcp.run()
