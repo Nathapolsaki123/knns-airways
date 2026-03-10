@@ -374,8 +374,7 @@ class Airline:
         if not available_seat_list:
             raise Exception("Error not founded any available seat. Please contact customer service.")
         else:
-            print(f"available seat: {[ s.seat_no for s in available_seat_list]}")
-            return True
+            return f"available seat: {[ s.seat_no for s in available_seat_list]}"
             
     def search_passenger_by_id(self, passenger_id):
         for p in self.__passenger_list:
