@@ -84,8 +84,8 @@ class Airline:
     
     def create_flight_instance(self,flight_no,airplane_no,depart_time,arrive_time):
         try:
-            datetime.strptime(depart_time,'%d/%m/%Y %H:%M')
-            datetime.strptime(arrive_time,'%d/%m/%Y %H:%M')
+            datetime.strptime(depart_time,'%d-%m-%Y %H:%M')
+            datetime.strptime(arrive_time,'%d-%m-%Y %H:%M')
         except:
             raise HTTPException(status_code=404,detail="Invalid Time")
         
@@ -121,6 +121,18 @@ class Airline:
     def create_flightfood(self,name,price):
         food = FlightFood(name,price)
         self.__flightfood_list.append(food)
+
+    def update_flight(self,flight_no,old_depart_time,depart_time,arrive_time):
+        try:
+            datetime.strptime(depart_time,'%d-%m-%Y %H:%M')
+            datetime.strptime(arrive_time,'%d-%m-%Y %H:%M')
+            datetime.strptime(old_depart_time,'%d-%m-%Y %H:%M')
+        except:
+            raise HTTPException(status_code=404,detail="Invalid Time")
+        
+        instance = self.search_flight_instance(flight_no,old_depart_time)
+        instance.edit_time(depart_time,arrive_time)
+        return instance
     
 
 
@@ -223,6 +235,10 @@ class FlightInstance:
     def add_flightfood(self,flightfood):
         self.__food_list.append(flightfood)
 
+    def edit_time(self,depart_time,arrive_time):
+        self.__depart_time = depart_time
+        self.__arrive_time = arrive_time
+
     def reserve_seat(self,type):
         if type == "Economy":
             self.__economy_seat_available-=1
@@ -248,8 +264,8 @@ class FlightInstance:
         self.__flight_status = status
     
     def calculate_flight_time(self):
-        start = datetime.strptime(self.__depart_time,'%d/%m/%Y %H:%M')
-        end = datetime.strptime(self.__arrive_time,'%d/%m/%Y %H:%M')
+        start = datetime.strptime(self.__depart_time,'%d-%m-%Y %H:%M')
+        end = datetime.strptime(self.__arrive_time,'%d-%m-%Y %H:%M')
         time_diff = end-start
         if start>end:
             raise HTTPException(status_code=404,detail="Negative Time")
@@ -331,7 +347,7 @@ for name, price in food_items:
     airline.create_flightfood(name, price)
 
 # 4. ทดลองสร้าง Flight Instance ไว้ล่วงหน้า 1 รายการ
-airline.create_flight_instance("TG911", "AB1234", "15/03/2026 10:00", "15/03/2026 11:30")
+airline.create_flight_instance("TG911", "AB1234", "15-03-2026 10:00", "15-03-2026 11:30")
 
 # --- จบการจำลองข้อมูล ---
 
@@ -348,6 +364,11 @@ def create_flight(flight_no,airplane_no,depart_time,arrive_time):
             ,"Amount_seat":{"Economy":flight_instance.get_amount_seat("Economy"),"Business":flight_instance.get_amount_seat("Business")}
             ,"FlightFood":flight_instance.show_flightfood()
             ,"seat_layout":flight_instance.get_remaining_seat()}
+
+@app.post("/edit_flight")
+def edit_flight(flight_no,old_depart_time,depart_time,arrive_time):
+    instance = airline.update_flight(flight_no,old_depart_time,depart_time,arrive_time)
+    return {"Info":instance.get_flight_data()}
 
 if __name__ == "__main__":
     uvicorn.run("create_flight:app", host = "127.0.0.1" ,port=8000, log_level="info")
