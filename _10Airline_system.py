@@ -62,7 +62,7 @@ class Card:
 
 class Passenger:
     id = 1
-    def __init__(self, name, email, card=None):
+    def __init__(self, name, email, luggage_weight, card=None):
         self.__passenger_id = f"{Passenger.id:05d}"
         Passenger.id += 1
         self.__name = name
@@ -73,6 +73,9 @@ class Passenger:
         self.__is_blacklisted = False
         self.__blacklist_time = None
         self.__notification_list = []
+        if(luggage_weight<0):
+            raise Exception("Luggage weight must be more than 0")
+        self.__luggage_weight = luggage_weight
 
     @property
     def passenger_id(self):
@@ -109,6 +112,10 @@ class Passenger:
     @property
     def notification_list(self):
         return self.__notification_list
+    
+    @property
+    def luggage_weight(self):
+        return self.__luggage_weight
 
     def add_booking(self, booking):
         self.__booking_list.append(booking)
@@ -119,8 +126,10 @@ class Passenger:
     def add_notification(self, notification):
         self.__notification_list.append(notification)
 
-    def booking_request(self):
-        pass
+    def set_weight(self,weight):
+        if(weight<0):
+            raise Exception("Luggage weight must be more than 0")
+        self.__luggage_weight = weight
 
     def search_booking_by_pnr(self, pnr):
         for b in self.__booking_list:
@@ -153,30 +162,20 @@ class Passenger:
 # =========================
 
 class Guest(Passenger):
+
+    DISCOUNT = 0
+    EXTRA_WEIGHT = 0
+    ANNUAL_FEE = 0
+
     identifier = "Guest"
-    def __init__(self, name, email, card=None):
-        super().__init__(name, email, card)
-        self.__discount = 1
-        self.__extra_weight = 0
-        self.__annual_fee = 0
-
-    @property
-    def discount(self):
-        return self.__discount
-
-    @property
-    def extra_weight(self):
-        return self.__extra_weight
-
-    @property
-    def annual_fee(self):
-        return self.__annual_fee
+    def __init__(self, name, email, luggage_weight, card=None):
+        super().__init__(name, email, luggage_weight, card)
 
 
 class Member(Passenger):
 
-    def __init__(self, name, email, card=None):
-        super().__init__(name, email, card)
+    def __init__(self, name, email, luggage_weight, card=None):
+        super().__init__(name, email, luggage_weight, card)
         self.__point = 0
 
     @property
@@ -188,66 +187,36 @@ class Member(Passenger):
 
 
 class Silver(Member):
+
+    DISCOUNT = 0.95
+    EXTRA_WEIGHT = 5.0
+    ANNUAL_FEE = 200.0
+
     identifier = "Silver"
-    def __init__(self, name, email, card=None):
-        super().__init__(name, email, card)
-        self.__discount = 0.95
-        self.__extra_weight = 5.0
-        self.__annual_fee = 200.0
-
-    @property
-    def discount(self):
-        return self.__discount
-
-    @property
-    def extra_weight(self):
-        return self.__extra_weight
-
-    @property
-    def annual_fee(self):
-        return self.__annual_fee
+    def __init__(self, name, email, luggage_weight, card=None):
+        super().__init__(name, email, luggage_weight, card)
     
 
 class Gold(Member):
-    identifier = "Gold"
-    def __init__(self, name, email, card=None):
-        super().__init__(name, email, card)
-        self.__discount = 0.9
-        self.__extra_weight = 10.0
-        self.__annual_fee = 300.0
     
-    @property
-    def discount(self):
-        return self.__discount
+    DISCOUNT = 0.9
+    EXTRA_WEIGHT = 10
+    ANNUAL_FEE = 300
 
-    @property
-    def extra_weight(self):
-        return self.__extra_weight
-
-    @property
-    def annual_fee(self):
-        return self.__annual_fee
+    identifier = "Gold"
+    def __init__(self, name, email, luggage_weight, card=None):
+        super().__init__(name, email, luggage_weight, card)
 
 
 class Platinum(Member):
+    
+    DISCOUNT = 0.85
+    EXTRA_WEIGHT = 20
+    ANNUAL_FEE = 500
+
     identifier = "Platinum"
-    def __init__(self, name, email, card=None):
-        super().__init__(name, email, card)
-        self.__discount = 0.85
-        self.__extra_weight = 20.0
-        self.__annual_fee = 500.0
-
-    @property
-    def discount(self):
-        return self.__discount
-
-    @property
-    def extra_weight(self):
-        return self.__extra_weight
-
-    @property
-    def annual_fee(self):
-        return self.__annual_fee
+    def __init__(self, name, email, luggage_weight, card=None):
+        super().__init__(name, email, luggage_weight, card)
 
 # =========================
 # SEAT
@@ -709,7 +678,7 @@ class Ticket:
 
 class Transaction:
 
-    def __init__(self, name, payment_type, amount):
+    def __init__(self, name, amount, payment_type):
         self.__sub_transaction_list = []
         self.__name = name
         self.__payment_type = payment_type
@@ -719,12 +688,18 @@ class Transaction:
     def sub_transaction_list(self):
         return self.__sub_transaction_list
 
+    def get_all_subtransaction(self):
+        sub_list = [{self.__name:self.__amount}]
+        for sub in self.__sub_transaction_list:
+            sub_list.append(sub.get_data())
+        return sub_list
+
     def add_sub_trans(self, sub):
         self.__sub_transaction_list.append(sub)
 
 class SubTransaction:
 
-    def __init__(self, name, payment_type, amount):
+    def __init__(self, name, amount, payment_type):
         self.__name = name
         self.__payment_type = payment_type
         self.__amount = amount
@@ -740,6 +715,11 @@ class SubTransaction:
     @property
     def amount(self):
         return self.__amount
+    
+    def get_data(self):
+        return {self.__name:self.__amount,"Payment_type":self.__payment_type.identifier}
+
+
 
 
 
@@ -910,7 +890,7 @@ class Booking:
         self.__payment_status = status
 
     def add_transaction(self, name: str, payment_type: str, amount: float):
-        new_transaction = Transaction(name,payment_type,amount)
+        new_transaction = Transaction(name,amount,payment_type)
         self.__transaction = new_transaction
 
     def validate_book(self):
@@ -925,6 +905,10 @@ class Booking:
 # =========================
 
 class Airline:
+    
+    ECONOMYCLASS_LIMIT_WEIGHT = 15
+    BUSSINESSCLASS_LIMIT_WEIGHT = 30
+    EXTRA_FEE_PER_KG = 300
 
     def __init__(self, name):
         self.__airline_name = name
@@ -996,7 +980,6 @@ class Airline:
         available_seat_list = current_flight.get_available_seat(current_booking.seat_type)
         return [s.seat_no for s in available_seat_list]
     
-
     def choose_seat(self,passenger_id,pnr,chosen_seat:str):
         
         current_passenger = self.search_passenger_by_id(passenger_id)
@@ -1184,9 +1167,78 @@ class Airline:
             if instance.departure_time == depart_time:
                 return instance
         raise Exception("Instance Not Found")
+    #weird
+    def get_data_by_pnr(self,pnr:str):
+        for passenger in self.__passenger_list:
+            for booking in passenger.booking_list:
+                if(booking.pnr == pnr):
+                    return passenger,booking
+        raise Exception("Data Not Found")
+    #weird
+    def get_weight_limit(self,pnr:str)->int:
+        current_data = self.get_data_by_pnr(pnr)
+        seat_class = current_data[1].seat_type
+        extra_weight = current_data[0].EXTRA_WEIGHT
+        weight_limit_before_tier = self.ECONOMYCLASS_LIMIT_WEIGHT if(seat_class == "Economy") else self.BUSSINESSCLASS_LIMIT_WEIGHT
 
-    def verify_weight(self):
-        pass
+        return weight_limit_before_tier+extra_weight
+    
+    def verify_weight(self,weight_limit:int,passenger:Passenger) -> bool:
+        if(passenger.luggage_weight<=weight_limit):
+            return True
+        return False
+
+    def load_luggage(self, pnr: str):
+        
+        weight_limit = self.get_weight_limit(pnr)
+        passenger = self.get_data_by_pnr(pnr)[0]
+        booking = self.get_data_by_pnr(pnr)[1]
+        card = passenger.card
+        discount = passenger.discount
+
+        # verify luggage weight
+        if self.verify_weight(weight_limit,passenger):
+            return {"name":passenger.name,
+           "luggage_weight":passenger.luggage_weight,
+           "weight_limit":weight_limit,
+        "message":f"Luggage loaded (WithinLimit)"
+        }
+
+        # calculate extra fee
+        extra_weight = passenger.luggage_weight -weight_limit
+        extra_fee_before_discount = self.__calculate_extra_weight_fee(extra_weight)
+        extra_fee = extra_fee_before_discount*(1-discount)
+
+        # payment
+        payment_result = self.payment_process("PayByCard",extra_fee,passenger)  
+        if not payment_result:
+            return "Error: Extra baggage payment failed"
+        
+        # create_subtransaction
+        transaction = booking.transaction
+        transaction.add_sub_trans(payment_result)
+
+        return {"name":passenger.name,
+           "luggage_weight":passenger.luggage_weight,
+           "weight_limit":weight_limit,
+        "message":f"Luggage loaded (Extra Fee :[{extra_weight} X {self.EXTRA_FEE_PER_KG}] - {passenger.DISCOUNT*100}% = {extra_fee})",
+        "transaction":booking.transaction.get_all_subtransaction()
+        }
+    
+    def __calculate_extra_weight_fee(self, extra_weight: int) -> int:
+        return extra_weight * self.EXTRA_FEE_PER_KG
+    
+    def payment_process(self,channel,fee:int,passenger:Passenger):
+
+        try:
+            if(channel == "Card"):
+                temp_payment_channel = PayByCard()
+                card = passenger.card
+                temp_payment_channel.pay(passenger, fee)
+                subtransaction = SubTransaction("Load_luggage_fee",fee,temp_payment_channel)
+                return subtransaction
+        except:
+            raise Exception("Payment Failed")
 
     def validate_card_info(self, card_pin: str, money: float):
         if len(card_pin) != 6:
