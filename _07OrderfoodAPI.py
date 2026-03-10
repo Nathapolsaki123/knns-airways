@@ -11,15 +11,15 @@ def create_system ():
     food_menu = FlightFood("Pad Thai", 150.0, "Economy")
 
     #ตรงนี้น่าจะต้องแก้ไข เปลี่ยนเป็นการ์ดเลย
-    payment = CardPayment(1000.0, "1234")  
-    passenger = Passenger("1234", "John", "john@email.com", payment)
+    card = Card("1234",1000.0 )  
+    passenger = Guest("1234", "John", "john@email.com", card)
 
     eco_seat = Economy("12A")  
     flight_seat = FlightSeat(eco_seat)
     flight_seat.assigh_passenger(passenger)  
 
     airplane = Airplane("Boeing 777", "B777-123", 200, 50)  
-    
+
     flight_blueprint = Flight("TG123", "BKK", "CNX")
     
     flight_instance = flight_blueprint.crete_flight_instance(
@@ -34,11 +34,12 @@ def create_system ():
     flight_instance.add_assigned_seat(flight_seat)
 
     print("--- 2. Setting up Passenger & Booking ---")
-    booking = Booking("PNR12345", passenger, flight_instance, eco_seat, 1)
+    booking = Booking("PNR12345", passenger, flight_instance,"Economy", 1)
 
     booking.update_status(BookingStatus.CHECKDIN, PaymentStatus.PAID)
     passenger.add_booking(booking)
     airline.add_passenger(passenger)
+    airline.add_airplane(airplane)
     return airline
 
 
@@ -52,8 +53,8 @@ def buy_food (passenger_id:str,pnr:str, food_name:str, quantity:int, payment_typ
 
 
 @app.get ("/getfoodtransaction/{pnr}/")
-def get_food_transaction (pnr) :
-    try: return airline.get_food_transaction (pnr)
+def get_food_transaction_list (pnr) :
+    try: return airline.get_food_transaction_list (pnr)
     except Exception as e : return f"Fail : {e}"
 
 airline = create_system ()
