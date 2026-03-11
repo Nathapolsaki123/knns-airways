@@ -1,9 +1,10 @@
 from enum import Enum
 from datetime import date,datetime,timedelta
 from abc import ABC,abstractmethod
+from fastapi import FastAPI, HTTPException
+
 import random
 import uuid
-
 
 
 # =========================
@@ -53,6 +54,8 @@ class Card:
         return self.__money
     
     def change_money(self, money):
+        if self.__money + money < 0:
+            raise HTTPException(status_code=400, detail="Card balance cannot be negative")
         self.__money += money
 
 
@@ -71,7 +74,6 @@ class Passenger:
         self.__booking_list = []
         self.__refunded_total = 0
         self.__is_blacklisted = False
-        self.__blacklist_time = None
         self.__notification_list = []
         self.__luggage_weight = 0
 
@@ -102,10 +104,6 @@ class Passenger:
     @property
     def is_blacklisted(self):
         return self.__is_blacklisted
-
-    @property
-    def blacklist_time(self):
-        return self.__blacklist_time
 
     @property
     def notification_list(self):
@@ -144,7 +142,6 @@ class Passenger:
                 "card_balance": self.__card.money if self.__card else None,
                 "refunded_total": self.__refunded_total,
                 "is_blacklisted": self.__is_blacklisted,
-                "blacklist_time": self.__blacklist_time
                 }
     
     def get_booking(self):
@@ -154,6 +151,15 @@ class Passenger:
             all_book[count] = b.get_data()
             count+=1
         return all_book
+    
+    def check_refunded_total(self) -> bool:
+        return 0 <= self.__refunded_total < 3
+    
+    def add_refunded_total(self) -> None:
+        self.__refunded_total += 1
+
+    def make_blacklist(self) -> None:
+        self.__is_blacklisted = True
 
 # =========================
 # MEMBERSHIP
@@ -181,6 +187,8 @@ class Member(Passenger):
         return self.__point
 
     def change_point(self, point):
+        if self.__point + point < 0:
+            raise HTTPException(status_code=400, detail="Member points cannot be negative")
         self.__point += point
 
 
@@ -227,54 +235,36 @@ class Seat(ABC):
     @property
     def seat_no(self):
         return self.__seat_no
-
-    @property
-    @abstractmethod
-    def type_seat(self):
-        pass
+    
 
 class Economy(Seat):
+    SEAT_PRICE = 300
 
     def __init__(self, seat_no):
         super().__init__(seat_no)
         self.__luggage_limit = 20.0
-        self.__seat_price = 300
-        self.__type_seat = "Economy"
+        self.__identifier = "Economy"
 
 
     @property
     def luggage_limit(self):
         return self.__luggage_limit
-
-    @property
-    def seat_price(self):
-        return self.__seat_price
     
-    @property
-    def type_seat(self):
-        return self.__type_seat
 
 
 class Business(Seat):
+    SEAT_PRICE = 500
 
     def __init__(self, seat_no):
         super().__init__(seat_no)
         self.__luggage_limit = 40.0
-        self.__seat_price = 500
-        self.__type_seat = "Business"
+        self.__identifier = "Business"
 
 
     @property
     def luggage_limit(self):
         return self.__luggage_limit
-
-    @property
-    def seat_price(self):
-        return self.__seat_price
     
-    @property
-    def type_seat(self):
-        return self.__type_seat
 
 
 # =========================
@@ -361,7 +351,14 @@ class FlightFood:
     @property
     def price(self):
         return self.__price
+    
+    def calculate_price(self, quantity: int) -> float:
+        # [Error Handling] ป้องกันสั่งอาหารติดลบหรือ 0
+        if quantity <= 0:
+            raise HTTPException(status_code=400, detail="Quantity must be greater than zero")
+        return self.__price * quantity
 
+    
 
 # =========================
 # FLIGHT
@@ -547,8 +544,8 @@ class FlightInstance:
     def add_airplane(self,airplane:Airplane):
         self.__airplane = airplane
         self.__remaining_seat_list = self.__airplane.seat_layout_list.copy()
-        self.__economy_seat_available = len([s for s in self.__remaining_seat_list if s.type_seat == "Economy"])
-        self.__business_seat_available = len([s for s in self.__remaining_seat_list if s.type_seat == "Business"])
+        self.__economy_seat_available = len([s for s in self.__remaining_seat_list if isinstance(s, Economy)])
+        self.__business_seat_available = len([s for s in self.__remaining_seat_list if isinstance(s, Business)])
 
     def add_flightfood(self,flightfood):
         self.__food_list.append(flightfood)
@@ -577,7 +574,7 @@ class FlightInstance:
     def get_available_seat(self, seat_class):
         result = []
         for seat in self.__remaining_seat_list:
-            if seat.type_seat == seat_class:
+            if seat.__identifier == seat_class:
                 result.append(seat)
         return result
     
@@ -603,6 +600,9 @@ class FlightInstance:
         time_diff = end - start
         return str(time_diff)
     
+    def get_food(self, flight: FlightInstance, food_name: str) -> FlightFood:
+        return flight.find_flight_food_by_food_name(food_name)
+    
     def get_flight_data(self):
         return {"Flight_no":self.__flight_no,
                 "Origin":self.__origin,
@@ -620,6 +620,10 @@ class FlightInstance:
             arrive_time = datetime.strptime(arrive_time, '%d-%m-%Y %H:%M')
         self.__departure_time = depart_time
         self.__arrival_time = arrive_time
+
+    def is_refundable_time(self) -> bool:
+        time_until_departure = self.departure_time - datetime.now()
+        return time_until_departure >= timedelta(hours=24)
 
     def open_check_in(self):
         self.__status = FlightStatus.CHECKINOPEN
@@ -665,7 +669,7 @@ class Ticket:
             f"Route     : {self.__origin} -> {self.__destination}\n"
             f"Departure : {self.__departure_time}\n"
             f"Seat      : {self.__seat.seat.seat_no}\n"
-            f"Class     : {self.__seat.seat.type_seat}\n"
+            f"Class     : {self.__seat.__identifier}\n"
             f"--------------------"
         )
 
@@ -683,6 +687,14 @@ class Transaction:
         self.__amount = amount
 
     @property
+    def payment_type(self):
+        return self.__payment_type
+    
+    @property
+    def amount(self):
+        return self.__amount
+
+    @property
     def sub_transaction_list(self):
         return self.__sub_transaction_list
 
@@ -691,9 +703,10 @@ class Transaction:
         for sub in self.__sub_transaction_list:
             sub_list.append(sub.get_data())
         return sub_list
+    
+    def add_sub_transaction(self,subtransaction):
+        self.__sub_transaction_list.append(subtransaction)
 
-    def add_sub_trans(self, sub):
-        self.__sub_transaction_list.append(sub)
 
 class SubTransaction:
 
@@ -715,7 +728,7 @@ class SubTransaction:
         return self.__amount
     
     def get_data(self):
-        return {self.__name:self.__amount,"Payment_type":self.__payment_type.identifier}
+        return {self.__name:self.__amount,"Payment_type":self.__payment_type}
 
 
 
@@ -733,9 +746,10 @@ class Payment(ABC):
             if getattr(sub, "identifier", None) == payment_type:
                 return sub
         raise Exception("Payment method invalid")
-                    
+    
+    @classmethod                     
     @abstractmethod
-    def validate(self):
+    def validate(cls, received_passenger,  validate_object=None):
         pass
 
 
@@ -758,11 +772,19 @@ class PayByCard(Payment):
         if price > card.money:
                 raise Exception("Not enough money")
         else:
-            card.change_money(price)
+            card.change_money(-price)
             is_member = isinstance(received_passenger, Member)
             if is_member:
                 received_passenger.change_point(int(price // 25))
             return True
+    
+    @classmethod
+    def refund(cls, received_passenger: Passenger, price: float) -> None:
+        # [Error Handling] ป้องกันยอดคืนเงินติดลบหรือ 0
+        if price <= 0:
+            raise HTTPException(status_code=400, detail="Refund amount must be strictly positive")
+        card = received_passenger.card
+        card.change_money(price)
         
 
 
@@ -785,7 +807,13 @@ class PayByPoint(Payment):
         else:
             received_passenger.change_point(-price)
             return True
-
+        
+    @classmethod
+    def refund(cls, received_passenger: Member, price: float) -> None:
+        # [Error Handling] ป้องกันยอดคืนพ้อยท์ติดลบหรือ 0
+        if price <= 0:
+            raise HTTPException(status_code=400, detail="Refund point amount must be strictly positive")
+        received_passenger.change_point(int(price))
 
 # =========================
 # BOOKING
@@ -793,7 +821,7 @@ class PayByPoint(Payment):
 
 class Booking:
 
-    def __init__(self, passenger: Passenger, flight_instance: FlightInstance, seat_type: str, seat_amount: int, max_weight: int, price: float):
+    def __init__(self, passenger: Passenger, flight_instance: FlightInstance, seat_type: str, seat_amount: int, price: float):
         self.__pnr = self.generate_pnr()
         self.__passenger = passenger
         self.__flight_instance = flight_instance
@@ -839,10 +867,6 @@ class Booking:
         return self.__booking_date
     
     @property
-    def max_weight(self):
-        return self.__max_weight
-    
-    @property
     def fare(self):
         return self.__fare
     
@@ -860,13 +884,15 @@ class Booking:
                 "status": self.__booking_status.value,
                 "payment_status": self.__payment_status.value,
                 "booking_date": self.__booking_date,
-                "max_weight": self.__max_weight,
                 "fare": self.__fare
                 }
     
     @staticmethod
     def generate_pnr():
         return uuid.uuid4().hex[:6].upper()
+    
+    def change_fare(self,amount):
+        self.__fare += amount
 
     def add_ticket(self,ticket):
         self.__ticket_list.append(ticket)
@@ -904,7 +930,7 @@ class Booking:
 class Airline:
     
     ECONOMYCLASS_LIMIT_WEIGHT = 15
-    BUSSINESSCLASS_LIMIT_WEIGHT = 30
+    BUSINESSCLASS_LIMIT_WEIGHT = 30
     EXTRA_FEE_PER_KG = 300
 
     def __init__(self, name):
@@ -1058,7 +1084,7 @@ class Airline:
         except:
             raise Exception("Invalid Time")
         
-        instance = self.search_flight_instance(flight_no,old_depart_time)
+        instance = self.find_flight_instance(flight_no,old_depart_time)
         instance.edit_time(depart_time,arrive_time)
         return instance
 
@@ -1121,20 +1147,15 @@ class Airline:
         food = FlightFood(name,price)
         self.__flight_food_list.append(food)
 
-    def generate_report(self):
-        pass
-
-    def remove_flight(self):
-        pass
-
-    def request_refund(self):
-        pass
-
     def search_flight(self,flight_no):
         for flight in self.__flight_list:
             if flight.flight_no == flight_no:
                 return flight
         return None
+    
+    def get_flight_seat(self, flight: FlightInstance, passenger_id: str) -> FlightSeat:
+        return flight.find_flight_seat_by_passenger_id(passenger_id)
+
 
     def search_airplane(self,airplane_no) :
         for airplane in self.__airplane_list:
@@ -1148,19 +1169,25 @@ class Airline:
                 return p
         return None
     
-    def search_flight_instance(self, flight_no, depart_time):
-        flight = self.search_flight(flight_no)
-        if not flight:
-            raise Exception("Flight Not Found")
-
-        # normalize depart_time to datetime for comparison
-        if isinstance(depart_time, str):
-            depart_time = datetime.strptime(depart_time, '%d-%m-%Y %H:%M')
-
-        for instance in flight.flight_instance_list:
-            if instance.departure_time == depart_time:
-                return instance
-        raise Exception("Instance Not Found")
+    def find_flight(self, flight_no: str):
+        for f in self.__flight_list:
+            if f.flight_no == flight_no:
+                return f
+        raise HTTPException(
+                status_code=404,
+                detail=f"Did not found flight {flight_no}"
+                )
+    
+    def find_flight_instance(self, flight_no: str, departure_time:datetime):
+        f = self.find_flight(flight_no)
+        for ff in f.flight_instance_list:
+            if ff.departure_time == departure_time:
+                return ff
+        raise HTTPException(
+        status_code=404,
+        detail=f"Did not found flight {flight_no} that depart at {departure_time}"
+        )
+    
     #weird
     def get_data_by_pnr(self,pnr:str):
         for passenger in self.__passenger_list:
@@ -1170,10 +1197,10 @@ class Airline:
         raise Exception("Data Not Found")
     #weird
     def get_weight_limit(self,pnr:str)->int:
-        current_data = self.get_data_by_pnr(pnr)
-        seat_class = current_data[1].seat_type
-        extra_weight = current_data[0].EXTRA_WEIGHT
-        weight_limit_before_tier = self.ECONOMYCLASS_LIMIT_WEIGHT if(seat_class == "Economy") else self.BUSSINESSCLASS_LIMIT_WEIGHT
+        passenger,booking = self.get_data_by_pnr(pnr)
+        seat_class = booking.seat_type
+        extra_weight = passenger.EXTRA_WEIGHT
+        weight_limit_before_tier = self.ECONOMYCLASS_LIMIT_WEIGHT if(seat_class == "Economy") else self.BUSINESSCLASS_LIMIT_WEIGHT
 
         return weight_limit_before_tier+extra_weight
     
@@ -1188,13 +1215,12 @@ class Airline:
         else:
             raise Exception("You haven't comeplete your checkin yet")
 
-    def load_luggage(self, pnr: str, payment_method: str):
-        data = self.get_data_by_pnr(pnr)
-        self.verify_status(data[1].booking_status)
+    def load_luggage(self, pnr: str):
+        passenger,booking = self.get_data_by_pnr(pnr)
+        flight_instance = booking.flight_instance
+        self.verify_status(booking)
         
         weight_limit = self.get_weight_limit(pnr)
-        passenger = self.get_data_by_pnr(pnr)[0]
-        booking = self.get_data_by_pnr(pnr)[1]
         card = passenger.card
         discount = passenger.DISCOUNT
 
@@ -1210,14 +1236,15 @@ class Airline:
         extra_weight = passenger.luggage_weight -weight_limit
         extra_fee_before_discount = self.__calculate_extra_weight_fee(extra_weight)
         extra_fee = extra_fee_before_discount*(1-discount)
+        booking.change_fare(extra_fee)
+        flight_instance.update_total_income(extra_fee)
 
         # payment
-        payment_type = Payment.get_payment_type(payment_method)
-        payment_type.Pay(passenger, extra_fee)
+        PayByCard.pay(passenger, extra_fee)
         
         # create_subtransaction
         transaction = booking.transaction
-        transaction.add_sub_trans(SubTransaction("Load_luggage_fee",extra_fee,payment_method))
+        transaction.add_sub_transaction(SubTransaction("Load_luggage_fee",extra_fee,"PayByCard"))
 
         return {"name":passenger.name,
            "luggage_weight":passenger.luggage_weight,
@@ -1237,12 +1264,12 @@ class Airline:
         return True
 
     def calculate_fare(self, flight_price: int, seat_type: str, seat_amount: int, discount: float):
-        if seat_type == "Economy":
-            seat_cost = 300
-        elif seat_type == "Business":
-            seat_cost = 500
+        if seat_type == "Business":
+            seat_cost = Business.SEAT_PRICE
+        elif seat_type == "Economy":
+            seat_cost = Economy.SEAT_PRICE
         else:
-            raise Exception("Price cannot be calculate")
+            raise Exception("Invalid seat")
 
         fare = (flight_price+(seat_cost*seat_amount))*(1-discount)
         return fare
@@ -1278,7 +1305,7 @@ class Airline:
         except:
             raise Exception("Date Format is wrong")
 
-        received_flight_instance = self.search_flight_instance(flight_no, date_departure_time)
+        received_flight_instance = self.find_flight_instance(flight_no,date_departure_time)
 
         received_flight_instance.check_seat_availability(seat_type, seat_amount)
             
@@ -1308,6 +1335,93 @@ class Airline:
         current_flight_instance = current_booking.flight_instance
         current_flight_instance.release_seat(current_booking.seat_type,current_booking.seat_amount)
         return "Canceled booking successful."
+    
+    def request_refund(self, pnr: str, passenger_id: str) -> str:
+        print("Airline: refund requested")
+
+        passenger = self.search_passenger_by_id(passenger_id)
+        booking = passenger.search_booking_by_pnr(pnr)
+
+        if not (booking.booking_status == BookingStatus.CONFIRMED and booking.payment_status == PaymentStatus.PAID):
+            # [Error Handling]
+            raise HTTPException(
+                status_code=400,
+                detail="Booking Status or Payment Status Invalid for refund"
+            )
+
+        if not passenger.check_refunded_total():
+            # [Error Handling]
+            raise HTTPException(
+                status_code=403,
+                detail="Reach Maximum Refund Limit or System Error"
+            )
+        
+        flight_instance = booking.flight_instance
+        if not flight_instance.is_refundable_time():
+            # [Error Handling]
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot refund: Flight departure is in less than 24 hours."
+            )
+
+        T = booking.transaction
+        payment_type = T.payment_type
+        price = T.amount
+
+        payment_type = Payment.get_payment_type(payment_type)
+        payment_type.refund(passenger, price)       
+
+        booking.update_booking_status(BookingStatus.CANCELED)
+        booking.update_payment_status(PaymentStatus.REFUNDED)
+
+        flight_instance.update_total_income(-price)
+        passenger.add_refunded_total()
+
+        flight_instance.release_seat(booking.seat_type, booking.seat_amount)
+
+        if passenger.refunded_total == 3:
+            self.__blacklist_list.append(passenger)
+            passenger.make_blacklist()
+
+        print(f"Refund confirmed for PNR {booking.pnr}")
+        return f"Refund confirmed for PNR {booking.pnr}"
+    
+    def buy_food(self, passenger_id: str, pnr: str, food_name: str, quantity: int, payment_type: str, pin: str) -> str:
+        # [1] Identification
+        passenger = self.search_passenger_by_id(passenger_id)
+        booking = passenger.search_booking_by_pnr(pnr)
+
+        # [2] Validation
+        # [Error Handling] ดักไม่ให้ผ่านถ้าสถานะไม่ถูก (ของเดิมไม่มี if ดัก)
+        if not (booking.booking_status == BookingStatus.CHECKEDIN and booking.payment_status == PaymentStatus.PAID):
+            raise HTTPException(
+                status_code=400,
+                detail="Booking must be Checked-in and Paid to buy food"
+            )
+
+        # [3] Location Retrieval
+        flight_instance = booking.flight_instance
+        flight_seat = self.get_flight_seat(flight_instance, passenger_id)
+
+        # [4] Menu & Pricing
+        food = self.get_food(flight_instance, food_name)
+        price = food.calculate_price(quantity)
+
+        # [5] Payment Processing
+        payment = Payment.get_payment_type(payment_type)
+        if payment is not None:
+            payment.validate(passenger, pin)
+            payment.pay(received_passenger=passenger, price=price)
+            flight_instance.update_total_income(price)
+
+        # [6] Finalizing & Records
+        sub_transaction = SubTransaction(food_name, price, payment_type)
+        transaction = booking.transaction
+        transaction.add_sub_transaction(sub_transaction)
+
+        flight_seat.add_food(food)
+
+        return "Order Food Success"
     
     def create_income_report(self, flight_no: str):
         string = []
@@ -1348,10 +1462,10 @@ class Airline:
         new_card = Card(card_pin, money)
         passenger = self.get_account(tier, name, email)
         passenger.add_card(new_card)
-        if passenger.annual_fee > new_card.money:
+        if passenger.ANNUAL_FEE > new_card.money:
             Passenger.id -= 1
             raise Exception("Not enough money to pay annual fee")
-        PayByCard.pay(passenger, passenger.annual_fee)
+        PayByCard.pay(passenger, passenger.ANNUAL_FEE)
         self.add_passenger(passenger)
         return passenger
 
@@ -1399,3 +1513,5 @@ class Airline:
             chosen_seat_obj.append(found)
 
         return chosen, invalid, duplicates, chosen_seat_obj
+    
+    
