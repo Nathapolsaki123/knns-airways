@@ -828,11 +828,15 @@ class SubTransaction:
 # =========================
 
 class Payment(ABC):
+
     @classmethod
     def get_payment_type(cls, payment_type: str) -> type['Payment']:
-        payment_type = payment_type.strip()
+        if not isinstance(payment_type, str) or not payment_type.strip():
+            raise HTTPException(status_code=400, detail="Payment method invalid")
+        target = payment_type.strip()
         for sub in cls.__subclasses__():
-            if getattr(sub, "identifier", None) == payment_type:
+            ident = getattr(sub, "identifier", None)
+            if ident is not None and ident.strip().lower() == target.lower():
                 return sub
         raise HTTPException(status_code=400, detail="Payment method invalid")
     
@@ -1349,8 +1353,9 @@ class Airline:
         PayByCard.pay(passenger, extra_fee)
         
         transaction = booking.transaction
-        transaction.add_sub_transaction(SubTransaction("Load_luggage_fee", extra_fee, "PayByCard"))
-
+        if transaction is None:
+            raise HTTPException(status_code=400, detail="ไม่พบรายการชำระเงิน กรุณาชำระเงินก่อนดำเนินการ")
+        
         return {"name": passenger.name,
         "luggage_weight": passenger.luggage_weight,
         "weight_limit": weight_limit,
