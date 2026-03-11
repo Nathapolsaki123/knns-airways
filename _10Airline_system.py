@@ -122,6 +122,10 @@ class Passenger:
     def add_notification(self, notification):
         self.__notification_list.append(notification)
 
+    def read_notification(self):
+        for n in self.__notification_list:
+            print(n)
+
     def set_weight(self,weight):
         if(weight<0):
             raise Exception("Luggage weight must be more than 0")
@@ -1076,6 +1080,15 @@ class Airline:
 
         return "Create Flight Success"
     
+    def update_flight_status(self,flight_no,departure_time,status):
+        flight_instance = self.find_flight_instance(flight_no, departure_time)
+        flight_instance.change_status(status)
+        for p in self.__passenger_list:
+            for b in p.booking_list:
+                f = b.flight_instance
+                if f.flight_no == flight_no and f.departure_time == departure_time:
+                    p.add_notification(f"flight{flight_no} that depart at {departure_time} is now {status}")
+    
     def update_flight(self,flight_no,old_depart_time,depart_time,arrive_time):
         try:
             datetime.strptime(depart_time,'%d-%m-%Y %H:%M')
@@ -1203,6 +1216,17 @@ class Airline:
         weight_limit_before_tier = self.ECONOMYCLASS_LIMIT_WEIGHT if(seat_class == "Economy") else self.BUSINESSCLASS_LIMIT_WEIGHT
 
         return weight_limit_before_tier+extra_weight
+    
+    def find_flight_food_by_food_name(self, food_name: str) -> 'FlightFood':
+        for food in self.__food_list: 
+            name = food.name
+            if food_name == name:
+                return food
+        # [Error Handling] 
+        raise HTTPException(
+            status_code=404,
+            detail=f"Food menu '{food_name}' not found on this flight"
+        )
     
     def verify_weight(self,weight_limit:int,passenger:Passenger) -> bool:
         if(passenger.luggage_weight<=weight_limit):
