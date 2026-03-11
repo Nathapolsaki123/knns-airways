@@ -20,7 +20,7 @@ def getBookkingStatus (pnr:str):
     if len(pnr)!=6 : return f"Error occurred: Wrong Len"
     try :
         bookings = airline.search_booking_by_pnr(pnr)
-        return "Booking: " + pnr + ", Status --> " + bookings.get_status()
+        return "Booking: " + pnr + ", Status --> " + bookings.get_status_str()
     except Exception as e:
         return f"Error occurred: {e}"
 
@@ -60,7 +60,7 @@ def create_system ()-> Airline :
 
     # 4. การสร้างการจอง (Booking)
     # ต้องสร้าง Seat Object ก่อน (ใช้ Bussiness ตามที่ระบุใน Class)
-    my_seat_type = Bussiness("12A")
+    my_seat_type = "Bussiness"
     booking = Booking(
         pnr="PNR747", 
         passenger=passenger, 

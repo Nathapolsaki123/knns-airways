@@ -36,7 +36,7 @@ class Booking:
     def __init__(self, pnr: str, passenger: 'Passenger', flight_instance: 'FlightInstance', seat_type: str, seat_amount: int) -> None:
         self.__pnr: str = pnr
         self.__passenger: 'Passenger' = passenger
-        self.__flight: 'FlightInstance' = flight_instance
+        self.__flight_instance: 'FlightInstance' = flight_instance
         self.__seat_type: str = seat_type
         self.__seat_amout: int = seat_amount
         self.__payment_status: PaymentStatus = PaymentStatus.PAID
@@ -53,6 +53,10 @@ class Booking:
     @property
     def pnr(self) -> str:
         return self.__pnr
+    
+    @property
+    def passenger(self) -> 'Passenger':
+        return self.__passenger
 
     def get_status_str(self) -> str:
         return "Booking: " + self.__booking_status.value + ", Payment: " + self.__payment_status.value  
@@ -78,6 +82,9 @@ class Booking:
     def get_food_transaction_list(self) -> list: 
         return self.transaction.get_food_transaction_list()  
 
+    @property
+    def flight_instance (self)-> 'FlightInstance' :
+        return self.__flight_instance
 
 class Passenger(ABC):
     def __init__(self, passenger_id: str, name: str, email: str, card: 'Card') -> None:
@@ -367,6 +374,14 @@ class Flight:
 
     def add_flight(self, flight_instance: 'FlightInstance') -> None:
         self.__flight_instance_list.append(flight_instance) 
+    
+    @property
+    def flight_no (self)->str :
+        return self.__flight_no
+
+    @property
+    def flight_instance_list(self)->list['FlightInstance']:
+        return self.__flight_instance_list
 
 
 class FlightInstance(Flight):
@@ -434,6 +449,10 @@ class FlightInstance(Flight):
     @property
     def departure_time(self) -> datetime:
         return self.__departure_time
+    
+    @property
+    def arrival_time(self) -> datetime:
+        return self.__arrival_time
 
     def is_refundable_time(self) -> bool:
         time_until_departure = self.departure_time - datetime.now()
@@ -663,7 +682,6 @@ class Airline:
         print(f"Refund confirmed for PNR {booking.pnr}")
         return f"Refund confirmed for PNR {booking.pnr}"
 
-
     def buy_food(self, passenger_id: str, pnr: str, food_name: str, quantity: int, payment_type: str, pin: str) -> str:
         # [1] Identification
         passenger = self.find_passenger_by_id(passenger_id)
@@ -700,6 +718,22 @@ class Airline:
         flight_seat.add_food(food, quantity)
 
         return "Order Food Success"
+
+    # def cancel_flight(self,flight_no: str, arrival_time: datetime, departure_time:datetime):
+    #     flight_instance = self.find_flight_instance(flight_no, arrival_time, departure_time)
+    #     booking = []
+    #     for B in self.__booking_list :
+    #         F = B.flight_instance
+    #         if F == flight_instance:
+    #             booking.append(B)
+    #     if len(booking) == 0 :
+    #         raise HTTPException(
+    #         status_code=404,
+    #         detail=f"There no booking with this FlightInstance '{flight_no}' , '{arrival_time}' . '{departure_time}'"
+    #     )
+        
+    #     for BB in booking :
+    #         airline.request_refund(booking.pnr,booking.passenger.id))
 
     def add_passenger(self, passenger: Passenger) -> None:
         self.__passenger_list.append(passenger) 
@@ -752,6 +786,25 @@ class Airline:
         msg = booking.get_food_transaction_list() 
         return msg
 
+    def find_flight(self, flight_no: str):
+        for f in self.__flight_list:
+            if f.flight_no == flight_no:
+                return f
+        raise HTTPException(
+                status_code=404,
+                detail=f"Did not found flight {flight_no}"
+                )
+
+    def find_flight_instance(self, flight_no: str, arrival_time: datetime, departure_time:datetime)->FlightInstance:
+        f = self.find_flight(flight_no)
+        for ff in f.flight_instance_list:
+            if ff.arrival_time == arrival_time and ff.departure_time == departure_time:
+                return ff
+        raise HTTPException(
+        status_code=404,
+        detail=f"Did not found flight {flight_no} that depart at {departure_time} and arrive at {arrival_time}"
+        )
+
     def add_airplane(self, airplane: Airplane) -> None: self.__airplane_list.append(airplane)
     def add_booking(self, booking: Booking) -> None: self.__booking_list.append(booking) 
     def add_flight(self, flight: Flight) -> None: self.__flight_list.append(flight) 
@@ -765,6 +818,7 @@ class Airline:
     def search_passenger_by_id(self) -> None: pass
     def update_flight(self) -> None: pass
     def verify_weight(self) -> None: pass
+
 
 
 # ==========================================
