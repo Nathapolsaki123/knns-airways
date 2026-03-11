@@ -715,3 +715,4 @@ def create_account(name: str, email: str, card_pin: str, money: float, tier: str
 
 if __name__ == "__main__":
     app.run()
+

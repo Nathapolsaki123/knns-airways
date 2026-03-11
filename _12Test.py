@@ -3,7 +3,6 @@ from datetime import date, datetime, timedelta
 from abc import ABC, abstractmethod
 from fastapi import FastAPI, HTTPException
 
-
 import random
 import uuid
 
@@ -95,7 +94,6 @@ class Passenger:
         self.__booking_list: list['Booking'] = []
         self.__refunded_total: int = 0
         self.__is_blacklisted: bool = False
-        self.__blacklist_time: timedelta | None = None
         self.__notification_list: list[str] = []
         self.__luggage_weight: float = 0.0
 
@@ -194,7 +192,6 @@ class Passenger:
 
     def make_blacklist(self) -> None:
         self.__is_blacklisted = True
-        self.__blacklist_time = timedelta(days=180)
 
 # =========================
 # MEMBERSHIP
@@ -356,13 +353,6 @@ class Airplane:
     @property
     def seat_layout_list(self) -> list['Seat']:
         return self.__seat_layout_list
-    
-    def get_data(self):
-        return {"Model":self.__model_number,
-                "Airplane_no":self.__registration_no,
-                "Seat":{"Economy":self.__economy_seat_amount,"Business":self.__business_seat_amount},
-                }
-
     
     def add_seat_for_new_plane(self, economy_seat: int, business_seat: int) -> None:
         self.__seat_layout_list.clear()
@@ -698,7 +688,7 @@ class FlightInstance:
             detail=f"Seat assigned to passenger ID '{passenger_id}' not found on this flight"
         )
     
-    def get_flight_data(self) -> dict:
+    def get_flight_instance_data(self) -> dict:
         return {"Flight_no": self.__flight_no,
                 "Origin": self.__origin,
                 "Destination": self.__destination,
@@ -1418,10 +1408,6 @@ class Airline:
         received_book.add_transaction("pay_for_booking", payment_method, received_book.fare)
         return received_book
     
-    def check_flight_status(self,flight_instance, status):
-        if flight_instance.status != status:
-            raise HTTPException(status_code=400, detail=f"You can no longer book because flight status is now {status}")
-    
     def booking(self, id: str, flight_no: str, departure_time: str, seat_type: str, seat_amount: int) -> Booking:
         id = id.strip()
         flight_no = flight_no.strip().upper()
@@ -1431,9 +1417,6 @@ class Airline:
             raise HTTPException(status_code=400, detail="Seat amount must be a positive integer")
             
         received_passenger = self.search_passenger_by_id(id)
-        flight_instance = received_passenger.flight_instance
-
-        # self.check_flight_status(self,flight_instance, FlightStatus.SCHEDULED)
 
         if received_passenger.is_blacklisted:
             raise HTTPException(status_code=403, detail="You are on the blacklist and cannot book until your blacklist time is over")
@@ -1475,8 +1458,6 @@ class Airline:
         print("Airline: refund requested")
         pnr = pnr.strip().upper()
         passenger_id = passenger_id.strip()
-
-
 
         passenger: Passenger = self.search_passenger_by_id(passenger_id)
         booking: Booking = passenger.find_booking(pnr)
@@ -1527,9 +1508,6 @@ class Airline:
         pnr = pnr.strip().upper()
         food_name = food_name.strip()
         
-        flight_instance = booking.flight_instance
-        # self.check_flight_status(self,flight_instance, FlightStatus.SCHEDULED)
-
         if not isinstance(quantity, int) or quantity <= 0:
             raise HTTPException(status_code=400, detail="Quantity must be a positive integer")
 
@@ -1543,6 +1521,7 @@ class Airline:
                 detail="Booking must be Checked-in/Completed and Paid to buy food"
             )
 
+        flight_instance = booking.flight_instance
         flight_seat = flight_instance.find_flight_seat_by_passenger_id(passenger_id)
         food = flight_instance.find_flight_instance_food_by_food_name(food_name)
         
@@ -1665,4 +1644,3 @@ class Airline:
             chosen_seat_obj.append(found)
 
         return chosen, invalid, duplicates, chosen_seat_obj
-    
