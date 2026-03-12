@@ -378,6 +378,11 @@ class Airplane:
     def create_business_seat(self, seat_no: str) -> Business:
         return Business(seat_no)
 
+    def get_data(self):
+        return {"Model":self.__model_number,
+                "Airplane_no":self.__registration_no,
+                "Seat":{"Economy":self.__economy_seat_amount,"Business":self.__business_seat_amount},
+                }
 
 # =========================
 # FOOD
@@ -609,6 +614,7 @@ class FlightInstance:
 
     def add_flightfood(self, flightfood: FlightFood) -> None:
         self.__food_list.append(flightfood)
+    
 
     def reserve_seat(self, type: str) -> None:
         type = type.strip().capitalize()
@@ -658,6 +664,10 @@ class FlightInstance:
     
     def change_flight_status(self, status: FlightStatus) -> None:
         self.__status = status
+
+    def check_flight_status(self, status):
+        if self.__status != status:
+            raise HTTPException(status_code=400, detail=f"You can't do this because flight status is now {status}")
 
     def calculate_flight_time(self) -> str:
         start = self.__departure_time
@@ -1146,6 +1156,7 @@ class Airline:
         flight_no = flight_no.strip().upper()
         flight = Flight(flight_no, origin, target)
         self.__flight_list.append(flight)
+        return flight
 
     def create_flight_instance(self, flight_no: str, airplane_no: str, depart_time: str, arrive_time: str) -> str:
         flight_no = flight_no.strip().upper()
@@ -1298,6 +1309,15 @@ class Airline:
         detail=f"Did not found flight {flight_no} that depart at {departure_time}"
         )
     
+    def search_flight_instance(self,flight_no,depart_time):
+        for flight in self.__flight_list:
+            if flight.flight_no == flight_no:
+                for instance in flight.flight_instance_list:
+                    if instance.departure_time == depart_time:
+                        return instance
+                raise HTTPException(status_code=404,detail="Instance Not Found")
+        raise HTTPException(status_code=404,detail="Flight Not Found")
+    
     def get_data_by_pnr(self, pnr: str) -> tuple[Passenger, Booking]:
         pnr = pnr.strip().upper()
         for passenger in self.__passenger_list:
@@ -1348,7 +1368,6 @@ class Airline:
         extra_fee_before_discount = self.__calculate_extra_weight_fee(extra_weight)
         extra_fee = extra_fee_before_discount * (1 - discount)
         booking.change_fare(extra_fee)
-        flight_instance.update_total_income(extra_fee)
 
         PayByCard.pay(passenger, extra_fee)
         
@@ -1426,6 +1445,7 @@ class Airline:
             raise HTTPException(status_code=400, detail="Date Format is wrong")
 
         received_flight_instance = self.find_flight_instance(flight_no, date_departure_time)
+        received_flight_instance.check_flight_status(FlightStatus.SCHEDULED)
 
         received_flight_instance.check_seat_availability(seat_type, seat_amount)
             
@@ -1495,6 +1515,7 @@ class Airline:
         passenger.add_refunded_total()
 
         flight_instance.release_seat(booking.seat_type, booking.seat_amount)
+        
 
         if passenger.refunded_total == 3:
             self.__blacklist_list.append(passenger)
@@ -1541,6 +1562,15 @@ class Airline:
 
         return "Order Food Success"
     
+    def show_flight_instance(self):
+        flight_list = []
+        for flight in self.__flight_list:
+            instance_list = []
+            for instance in flight.flight_instance_list:
+                instance_list.append(instance.get_flight_instance_data())
+            flight_list.append(instance_list)
+        return flight_list
+
     def create_income_report(self, flight_no: str) -> list[str]:
         flight_no = flight_no.strip().upper()
         string = []

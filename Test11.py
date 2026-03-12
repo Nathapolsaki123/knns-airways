@@ -22,16 +22,24 @@ airline_sys = Airline("KNNS Global Airways")
 # 🚀 12 TEST CASES - MCP TOOLS
 # ========================================================
 
+# @mcp.tool()
+# def admin_setup_system():
+#     """[Admin]Setup ระบบพื้นฐาน สร้างเครื่องบิน, เส้นทางบิน และเมนูอาหาร"""
+#     from _12Test import Airplane
+airline_sys.create_flightfood("Premium Steak", 500.0)
+airline_sys.create_flightfood("Bibimbap", 250.0)
+
 @mcp.tool()
-def admin_setup_system():
-    """[Admin]Setup ระบบพื้นฐาน สร้างเครื่องบิน, เส้นทางบิน และเมนูอาหาร"""
-    from _12Test import Airplane
-    plane = Airplane(model_number="Airbus A350", registration_no="HS-KNN", eco=20, bus=5)
-    airline_sys.add_airplane(plane)
-    airline_sys.create_flight("KN101", "Bangkok (BKK)", "Seoul (ICN)")
-    airline_sys.create_flightfood("Premium Steak", 500.0)
-    airline_sys.create_flightfood("Bibimbap", 250.0)
-    return "System Setup Complete: Airplane HS-KNN and Flight KN101 are ready."
+def create_flight(flight_no: str, origin: str, target: str):
+    """
+    สร้างเส้นทางการบินหลัก (Flight Route) โดยยังไม่ได้ระบุเวลาหรือเครื่องบิน
+    - flight_no: รหัสเที่ยวบิน (เช่น 'TG911')
+    - origin: สนามบินต้นทาง (เช่น 'BKK')
+    - target: สนามบินปลายทาง (เช่น 'HKT')
+    ต้องสร้างเส้นทางบินก่อนเสมอ ถึงจะไปสร้าง Flight Instance (ตารางบินจริง) ได้
+    """
+    flight : Flight = airline_sys.create_flight(flight_no, origin, target)
+    return flight.get_flight_data()
 
 @mcp.tool()
 def create_flight_instance(flight_no: str, airplane_no: str, depart_time: str, arrive_time: str):
@@ -53,7 +61,7 @@ def create_flight_instance(flight_no: str, airplane_no: str, depart_time: str, a
             "Business": flight_instance.get_amount_seat("Business")
         },
         "FlightFood": flight_instance.show_flightfood(),
-        "seat_layout": flight_instance.get_remaining_seat()
+        "seat_layout": flight_instance.get_available_seat()
     }
 
 @mcp.tool()
@@ -170,6 +178,20 @@ def edit_flight(flight_no: str, old_depart_time: str, depart_time: str, arrive_t
     """
     instance = airline_sys.update_flight(flight_no, old_depart_time, depart_time, arrive_time)
     return {"Info": instance.get_flight_instance_data()}
+
+@mcp.tool()
+def order_food (passenger_id: str, pnr: str, food_name: str, quantity: int, payment_type: str, pin: str):
+    """
+    ซื้ออาหาร 
+    -passenger_id = รหัสผู้โดยสาร , 
+    -pnr = PNR , 
+    -food_name = ชื่ออาหาร , 
+    -quantity = จำนวน , 
+    -payment_type = ช่องทางการจ่ายเงิน , 
+    -pin = รหัส
+    """
+    airline_sys.buy_food (passenger_id, pnr, food_name, quantity, payment_type, pin)
+    return f"{food_name} be bought {quantity} amount"
 
 if __name__ == "__main__":
     mcp.run()
