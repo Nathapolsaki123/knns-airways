@@ -447,11 +447,11 @@ class Flight:
     def add_flight_instance(self, flight_instance: 'FlightInstance') -> None:
         self.__flight_instance_list.append(flight_instance)
 
-    def create_flight_instance(self, airplane: Airplane, depart_time: str | datetime, arrive_time: str | datetime) -> 'FlightInstance':
-        flight_instance = FlightInstance(self.__flight_no, self.__origin, self.__destination, depart_time, arrive_time)
-        flight_instance.add_airplane(airplane)
-        self.__flight_instance_list.append(flight_instance)
-        return flight_instance
+    #def create_flight_instance(self, airplane: Airplane, depart_time: str | datetime, arrive_time: str | datetime) -> 'FlightInstance':
+        #flight_instance = FlightInstance(self.__flight_no, self.__origin, self.__destination, depart_time, arrive_time)
+        #flight_instance.add_airplane(airplane)
+        #self.__flight_instance_list.append(flight_instance)
+        #return flight_instance
     
     def get_flight_data(self) -> dict:
         return {"Flight_no": self.__flight_no,
@@ -722,6 +722,10 @@ class FlightInstance:
     def is_refundable_time(self) -> bool:
         time_until_departure = self.departure_time - datetime.now()
         return time_until_departure >= timedelta(hours=24)
+    
+    def check_in_able_time(self) -> bool:
+        time_until_departure = self.departure_time - datetime.now()
+        return time_until_departure <= timedelta(seconds=0)
 
     def open_check_in(self) -> None:
         self.__status = FlightStatus.CHECKINOPEN
@@ -1104,10 +1108,16 @@ class Airline:
             raise HTTPException(status_code=400, detail="Invalid Booking Status")
 
         current_flight = current_booking.flight_instance
+        if not current_flight.check_in_able_time():
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot check in: You have passed your check in time."
+            )
+
 
         if current_flight.status != FlightStatus.CHECKINOPEN:
             raise HTTPException(status_code=400, detail="Check-in is not open yet.")
-
+        
         current_booking.update_booking_status(BookingStatus.CHECKEDIN)
 
         available_seat_list = current_flight.get_available_seat(current_booking.seat_type)
@@ -1177,7 +1187,10 @@ class Airline:
         if not airplane.status:
             raise HTTPException(status_code=400, detail="Airplane Unavailable")
         
-        flight_instance = flight.create_flight_instance(airplane, depart_time, arrive_time)
+        #flight_instance = flight.create_flight_instance(airplane, depart_time, arrive_time)
+        flight_instance = FlightInstance(flight_no, flight.origin, flight.destination, depart_time, arrive_time)
+        flight_instance.add_airplane(airplane)
+        flight.add_flight_instance(flight_instance)
         airplane.set_status(False)
 
         self.add_flightfood_to_flight_instance(flight_instance)
@@ -1266,12 +1279,12 @@ class Airline:
         food = FlightFood(name, price)
         self.__flight_food_list.append(food)
 
-    def search_flight(self, flight_no: str) -> Flight | None:
-        flight_no = flight_no.strip().upper()
-        for flight in self.__flight_list:
-            if flight.flight_no == flight_no:
-                return flight
-        return None
+    #def search_flight(self, flight_no: str) -> Flight | None:
+        #flight_no = flight_no.strip().upper()
+        #for flight in self.__flight_list:
+            #if flight.flight_no == flight_no:
+                #return flight
+        #return None
     
 
     def search_airplane(self, airplane_no: str) -> Airplane | None:
@@ -1293,10 +1306,11 @@ class Airline:
     
     def find_flight(self, flight_no: str) -> Flight:
         flight_no = flight_no.strip().upper()
-        flight = self.search_flight(flight_no)
-        if flight is None:
-            raise HTTPException(status_code=404, detail=f"Did not found flight {flight_no}")
-        return flight
+        #flight = self.search_flight(flight_no)
+        for flight in self.__flight_list:
+            if flight.flight_no == flight_no:
+                return flight
+        raise HTTPException(status_code=404, detail=f"Did not found flight {flight_no}")
     
     def find_flight_instance(self, flight_no: str, departure_time: datetime) -> FlightInstance:
         flight_no = flight_no.strip().upper()
@@ -1309,14 +1323,14 @@ class Airline:
         detail=f"Did not found flight {flight_no} that depart at {departure_time}"
         )
     
-    def search_flight_instance(self,flight_no,depart_time):
-        for flight in self.__flight_list:
-            if flight.flight_no == flight_no:
-                for instance in flight.flight_instance_list:
-                    if instance.departure_time == depart_time:
-                        return instance
-                raise HTTPException(status_code=404,detail="Instance Not Found")
-        raise HTTPException(status_code=404,detail="Flight Not Found")
+    #def search_flight_instance(self,flight_no,depart_time):
+        #for flight in self.__flight_list:
+            #if flight.flight_no == flight_no:
+                #for instance in flight.flight_instance_list:
+                    #if instance.departure_time == depart_time:
+                        #return instance
+                #raise HTTPException(status_code=404,detail="Instance Not Found")
+        #raise HTTPException(status_code=404,detail="Flight Not Found")
     
     def get_data_by_pnr(self, pnr: str) -> tuple[Passenger, Booking]:
         pnr = pnr.strip().upper()

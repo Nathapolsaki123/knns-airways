@@ -1420,7 +1420,7 @@ class Airline:
     
     def check_flight_status(self,flight_instance, status):
         if flight_instance.status != status:
-            raise HTTPException(status_code=400, detail=f"You can no longer book because flight status is now {status}")
+            raise HTTPException(status_code=400, detail=f"You can't do this because flight status is now {status}")
     
     def booking(self, id: str, flight_no: str, departure_time: str, seat_type: str, seat_amount: int) -> Booking:
         id = id.strip()
@@ -1433,7 +1433,7 @@ class Airline:
         received_passenger = self.search_passenger_by_id(id)
         flight_instance = received_passenger.flight_instance
 
-        # self.check_flight_status(self,flight_instance, FlightStatus.SCHEDULED)
+        self.check_flight_status(self,flight_instance, FlightStatus.SCHEDULED)
 
         if received_passenger.is_blacklisted:
             raise HTTPException(status_code=403, detail="You are on the blacklist and cannot book until your blacklist time is over")
@@ -1528,7 +1528,7 @@ class Airline:
         food_name = food_name.strip()
         
         flight_instance = booking.flight_instance
-        # self.check_flight_status(self,flight_instance, FlightStatus.SCHEDULED)
+        self.check_flight_status(self,flight_instance, FlightStatus.SCHEDULED)
 
         if not isinstance(quantity, int) or quantity <= 0:
             raise HTTPException(status_code=400, detail="Quantity must be a positive integer")
