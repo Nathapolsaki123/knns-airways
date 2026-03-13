@@ -1,3 +1,4 @@
+from curses.ascii import HT
 from enum import Enum
 from datetime import date, datetime, timedelta
 from abc import ABC, abstractmethod
@@ -725,7 +726,12 @@ class FlightInstance:
     
     def check_in_able_time(self) -> bool:
         time_until_departure = self.departure_time - datetime.now()
-        return time_until_departure <= timedelta(seconds=0)
+        return time_until_departure >= timedelta(seconds=0)
+    
+    def is_order_food_time (self)->bool:
+        time_until_departure = self.departure_time - datetime.now()
+        return time_until_departure >= timedelta(seconds=0)
+
 
     def open_check_in(self) -> None:
         self.__status = FlightStatus.CHECKINOPEN
@@ -1162,7 +1168,7 @@ class Airline:
         current_booking.update_booking_status(BookingStatus.COMPLETED)
         return created_tickets
         
-    def create_flight(self, flight_no: str, origin: str, target: str) -> None:
+    def create_flight(self, flight_no: str, origin: str, target: str) ->Flight :
         flight_no = flight_no.strip().upper()
         flight = Flight(flight_no, origin, target)
         self.__flight_list.append(flight)
@@ -1197,14 +1203,15 @@ class Airline:
 
         return "Create Flight Success"
     
-    def update_flight_status(self, flight_no: str, departure_time: datetime, status: FlightStatus) -> None:
+    def update_flight_status(self, flight_no: str, departure_time: str, status: FlightStatus) -> None:
         flight_no = flight_no.strip().upper()
         flight_instance = self.find_flight_instance(flight_no, departure_time)
         flight_instance.change_flight_status(status)
+        date = datetime.strptime(departure_time.strip(), '%d-%m-%Y %H:%M')
         for p in self.__passenger_list:
             for b in p.booking_list:
                 f = b.flight_instance
-                if f.flight_no == flight_no and f.departure_time == departure_time:
+                if f.flight_no == flight_no and f.departure_time == date:
                     p.add_notification(f"flight {flight_no} that depart at {departure_time} is now {status.value}")
     
     def update_flight(self, flight_no: str, old_depart_time: str, depart_time: str, arrive_time: str) -> FlightInstance:
@@ -1216,7 +1223,7 @@ class Airline:
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid Time format")
         
-        instance = self.find_flight_instance(flight_no, old_dt)
+        instance = self.find_flight_instance(flight_no, old_depart_time)
         instance.edit_time(depart_time, arrive_time)
         return instance
 
@@ -1312,11 +1319,12 @@ class Airline:
                 return flight
         raise HTTPException(status_code=404, detail=f"Did not found flight {flight_no}")
     
-    def find_flight_instance(self, flight_no: str, departure_time: datetime) -> FlightInstance:
+    def find_flight_instance(self, flight_no: str, departure_time: str) -> FlightInstance:
         flight_no = flight_no.strip().upper()
         f = self.find_flight(flight_no)
+        date = datetime.strptime(departure_time.strip(), '%d-%m-%Y %H:%M')
         for ff in f.flight_instance_list:
-            if ff.departure_time == departure_time:
+            if ff.departure_time == date:
                 return ff
         raise HTTPException(
         status_code=404,
@@ -1458,7 +1466,7 @@ class Airline:
         except ValueError:
             raise HTTPException(status_code=400, detail="Date Format is wrong")
 
-        received_flight_instance = self.find_flight_instance(flight_no, date_departure_time)
+        received_flight_instance = self.find_flight_instance(flight_no, departure_time)
         received_flight_instance.check_flight_status(FlightStatus.SCHEDULED)
 
         received_flight_instance.check_seat_availability(seat_type, seat_amount)
@@ -1548,7 +1556,13 @@ class Airline:
 
         passenger = self.search_passenger_by_id(passenger_id)
         booking = passenger.find_booking(pnr)
+        flight_instance = booking.flight_instance
 
+        if not flight_instance.is_order_food_time():
+            raise HTTPException( 
+                status_code=400,
+                detail="Must buy food before depart"
+            )
         # [แก้บัค] ต้องอนุญาตให้สถานะ COMPLETED สั่งอาหารได้ด้วย เพราะต้องเลือกที่นั่งก่อนถึงจะเสิร์ฟอาหารได้
         if booking.booking_status not in [BookingStatus.CHECKEDIN, BookingStatus.COMPLETED] or booking.payment_status != PaymentStatus.PAID:
             raise HTTPException(
@@ -1556,17 +1570,17 @@ class Airline:
                 detail="Booking must be Checked-in/Completed and Paid to buy food"
             )
 
-        flight_instance = booking.flight_instance
         flight_seat = flight_instance.find_flight_seat_by_passenger_id(passenger_id)
         food = flight_instance.find_flight_instance_food_by_food_name(food_name)
         
         price = food.calculate_price(quantity)
 
+
         payment = Payment.get_payment_type(payment_type)
         if payment is not None:
             payment.validate(passenger, pin)
             payment.pay(received_passenger=passenger, price=price)
-            flight_instance.update_total_income(price)
+            flight_instance.update_total_income(price*booking.seat_amount)
 
         sub_transaction = SubTransaction(food_name, price, payment_type)
         transaction = booking.transaction

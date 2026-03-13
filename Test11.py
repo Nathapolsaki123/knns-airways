@@ -52,7 +52,7 @@ def create_flight_instance(flight_no: str, airplane_no: str, depart_time: str, a
     ใช้เครื่องมือนี้เพื่อกำหนดวันและเวลาที่จะบินจริง
     """
     result = airline_sys.create_flight_instance(flight_no, airplane_no, depart_time, arrive_time)
-    flight_instance = airline_sys.search_flight_instance(flight_no, depart_time)
+    flight_instance = airline_sys.find_flight_instance(flight_no, depart_time)
     return {
         "Message": result,
         "Info": flight_instance.get_flight_instance_data(),
@@ -61,7 +61,10 @@ def create_flight_instance(flight_no: str, airplane_no: str, depart_time: str, a
             "Business": flight_instance.get_amount_seat("Business")
         },
         "FlightFood": flight_instance.show_flightfood(),
-        "seat_layout": flight_instance.get_available_seat()
+        "seat_layout": {
+            "Economy": flight_instance.get_available_seat("Economy"),
+            "Business": flight_instance.get_available_seat("Business")
+        }
     }
 
 @mcp.tool()
@@ -70,11 +73,22 @@ def user_create_account(name: str, email: str, pin: str, money: float, tier: str
     user = airline_sys.create_account(name, email, pin, money, tier)
     return f"Account Created: {user.name} (ID: {user.passenger_id}) Tier: {tier}"
 
-# @mcp.tool()
-# def user_search_flight_instance(flight_no: str):
-#     """[Passenger]ค้นหาข้อมูลเที่ยวบินและเส้นทาง"""
-#     f = airline_sys.search_flight(flight_no)
-#     return f.get_flight_data() if f else "Flight not found."
+@mcp.tool()
+def user_search_flight_instance(flight_no: str,depart_time):
+    """[Passenger]ค้นหาข้อมูลเที่ยวบินและเส้นทาง"""
+    flight_instance = airline_sys.find_flight_instance(flight_no,depart_time)
+    return {
+        "Info": flight_instance.get_flight_instance_data(),
+        "Amount_seat": {
+            "Economy": flight_instance.get_amount_seat("Economy"),
+            "Business": flight_instance.get_amount_seat("Business")
+        },
+        "FlightFood": flight_instance.show_flightfood(),
+        "seat_layout": {
+            "Economy": flight_instance.get_available_seat("Economy"),
+            "Business": flight_instance.get_available_seat("Business")
+        }
+    }
 
 @mcp.tool()
 def user_request_booking(passenger_id: str, flight_no: str, depart_time: str, seat_type: str, amount: int):
@@ -83,7 +97,7 @@ def user_request_booking(passenger_id: str, flight_no: str, depart_time: str, se
     return f"Booking Success: PNR {book.pnr}, Total Fare: {book.fare} THB"
 
 @mcp.tool()
-def user_payment(passenger_id: str, pnr: str, method: str, pin: str = None):
+def user_payment(passenger_id: str, pnr: str, method: str, pin: str|None = None):
     """[Passenger]ชำระเงิน (PayByCard หรือ PayByPoint) เพื่อยืนยันการจอง"""
     airline_sys.pay_book(passenger_id, pnr, method, pin)
     return f"Payment Success for PNR {pnr}. Status: CONFIRMED"
@@ -101,9 +115,8 @@ def member_request_refund(pnr: str, passenger_id: str):
 @mcp.tool()
 def admin_update_status_and_notify(flight_no: str, depart_time: str, status_str: str):
     """[Admin]อัปเดตสถานะไฟลท์ (เช่น BOARDING) และส่ง Notification ไปยังผู้โดยสาร"""
-    dt = datetime.strptime(depart_time, '%d-%m-%Y %H:%M')
     status = FlightStatus[status_str.upper()]
-    airline_sys.update_flight_status(flight_no, dt, status)
+    airline_sys.update_flight_status(flight_no, depart_time, status)
     return f"Flight {flight_no} is now {status_str}. Passengers notified."
 
 @mcp.tool()
@@ -155,6 +168,8 @@ def user_read_inbox(passenger_id: str):
 def flight_information(flight_no:str,depart_time: str):
     """-flight_no: เลข flight ที่จะหา
     -departure_time: เวลา flight departure"""
+
+
     flight = airline_sys.find_flight_instance(flight_no, depart_time)
     return flight.get_flight_instance_data()
 
