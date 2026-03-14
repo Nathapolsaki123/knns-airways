@@ -3,7 +3,7 @@ from enum import Enum
 from datetime import date, datetime, timedelta
 from abc import ABC, abstractmethod
 from fastapi import FastAPI, HTTPException
-
+import copy
 import random
 import uuid
 
@@ -43,7 +43,7 @@ class FlightStatus(Enum):
 class Card:
 
     def __init__(self, pin: str, money: float) -> None:
-        # [ดัก Error] เช็ค Type และดักค่าว่าง/ติดลบ
+
         if not isinstance(pin, str) or not pin.strip().isdigit() or len(pin.strip()) != 6:
             raise HTTPException(status_code=400, detail="Pin must be a 6-digit number string")
         if not isinstance(money, (int, float)) or money < 0:
@@ -81,7 +81,7 @@ class Passenger:
     ANNUAL_FEE: float = 0.0
 
     def __init__(self, name: str, email: str) -> None:
-        # [ดัก Error] เช็คการกด Spacebar ผ่านๆ หรือส่งค่าว่าง
+        
         if not isinstance(name, str) or not name.strip():
             raise HTTPException(status_code=400, detail="Name cannot be empty")
         if not isinstance(email, str) or not email.strip():
@@ -153,7 +153,7 @@ class Passenger:
         self.__luggage_weight = float(weight)
 
     def find_booking(self, pnr: str) -> 'Booking':
-        # [ดัก Error] PNR Case Sensitivity
+
         if not isinstance(pnr, str):
             raise HTTPException(status_code=400, detail="PNR must be a string")
         pnr = pnr.strip().upper()
@@ -200,7 +200,7 @@ class Passenger:
 
 class Guest(Passenger):
 
-    DISCOUNT: float = 0.0  # แก้จาก 1.0 เป็น 0.0
+    DISCOUNT: float = 0.0  
     EXTRA_WEIGHT: float = 0.0
     ANNUAL_FEE: float = 0.0
 
@@ -265,7 +265,7 @@ class Platinum(Member):
 
 class Seat(ABC):
     def __init__(self, seat_no: str) -> None:
-        self.__seat_no = seat_no.strip().upper() # ป้องกัน Case Sensitive เรื่องเบาะที่นั่ง
+        self.__seat_no = seat_no.strip().upper() 
 
     @property
     def seat_no(self) -> str:
@@ -409,7 +409,6 @@ class FlightFood:
         return self.__price
     
     def calculate_price(self, quantity: int) -> float:
-        # [ดัก Error] Mismatch + Negative
         if not isinstance(quantity, int) or quantity <= 0:
             raise HTTPException(status_code=400, detail="Quantity must be a positive integer")
         return self.__price * quantity
@@ -423,7 +422,6 @@ class FlightFood:
 class Flight:
 
     def __init__(self, flight_no: str, origin: str, destination: str) -> None:
-        # [ดัก Error] Case Sensitivity
         self.__flight_no = flight_no.strip().upper()
         self.__origin = origin.strip().upper()
         self.__destination = destination.strip().upper()
@@ -447,12 +445,6 @@ class Flight:
     
     def add_flight_instance(self, flight_instance: 'FlightInstance') -> None:
         self.__flight_instance_list.append(flight_instance)
-
-    #def create_flight_instance(self, airplane: Airplane, depart_time: str | datetime, arrive_time: str | datetime) -> 'FlightInstance':
-        #flight_instance = FlightInstance(self.__flight_no, self.__origin, self.__destination, depart_time, arrive_time)
-        #flight_instance.add_airplane(airplane)
-        #self.__flight_instance_list.append(flight_instance)
-        #return flight_instance
     
     def get_flight_data(self) -> dict:
         return {"Flight_no": self.__flight_no,
@@ -488,8 +480,10 @@ class FlightSeat:
     def extra_weight(self) -> float:
         return self.__extra_weight
     
-    def add_food(self, food: FlightFood) -> None:
-        self.__food_list.append(food)
+    def add_food(self, food: FlightFood,quantity : int) -> None:
+        for i in range(0, quantity, 1):
+            new_food_instance = copy.deepcopy(food)
+            self.__food_list.append(new_food_instance) 
 
     def add_extra_weight(self, weight: float) -> None:
         if not isinstance(weight, (int, float)) or weight < 0:
@@ -586,7 +580,7 @@ class FlightInstance:
         if not isinstance(seat_amount, int) or seat_amount <= 0:
             raise HTTPException(status_code=400, detail="Seat amount must be a positive integer")
             
-        seat_type = seat_type.strip().capitalize() # ป้องกันคนพิมพ์ EcOnomy
+        seat_type = seat_type.strip().capitalize()
         
         if seat_type == "Business":
             if self.__business_booking_quota < seat_amount:
@@ -632,7 +626,7 @@ class FlightInstance:
 
     def release_seat(self, seat_type: str, seat_amount: int) -> None:
         if not isinstance(seat_amount, int) or seat_amount < 0:
-            return # ป้องกัน Error หรือง่ายๆ คือไม่ต้องทำอะไร
+            return 
         seat_type = seat_type.strip().capitalize()
         if seat_type == "Economy":
             self.__economy_booking_quota += seat_amount
@@ -879,7 +873,7 @@ class PayByCard(Payment):
     identifier: str = "PayByCard"
 
     @classmethod
-    def validate(cls, received_passenger: Passenger, validate_object: str | None = None) -> bool:
+    def validate(cls, received_passenger: Passenger, validate_object: str) -> bool:
         card = received_passenger.card
         if card is None:
             raise HTTPException(status_code=400, detail="Passenger has no card")
@@ -1022,7 +1016,7 @@ class Booking:
     
     def change_fare(self, amount: float) -> None:
         if not isinstance(amount, (int, float)):
-             raise HTTPException(status_code=400, detail="Amount must be a number")
+            raise HTTPException(status_code=400, detail="Amount must be a number")
         self.__fare += amount
 
     def add_ticket(self, ticket: Ticket) -> None:
@@ -1095,16 +1089,13 @@ class Airline:
     def add_flight_food(self, food: FlightFood) -> None:
         self.__flight_food_list.append(food)
 
-    def request_booking(self) -> None:
-        pass
-
     def check_in_passenger(self, passenger_id: str, pnr: str) -> list[str]:
         current_passenger = self.search_passenger_by_id(passenger_id)
         current_booking = current_passenger.find_booking(pnr)
 
         status = current_booking.booking_status
 
-        if status == BookingStatus.CHECKEDIN:
+        if status == BookingStatus.CHECKEDIN :
             raise HTTPException(status_code=400, detail="You have already checked in.")
         if status == BookingStatus.PENDING:
             raise HTTPException(status_code=400, detail="Your booking has not been paid yet.")
@@ -1165,7 +1156,6 @@ class Airline:
             ticket = Ticket(current_passenger, current_flight, flight_seat)
             current_booking.add_ticket(ticket)
             created_tickets.append(ticket)
-        current_booking.update_booking_status(BookingStatus.COMPLETED)
         return created_tickets
         
     def create_flight(self, flight_no: str, origin: str, target: str) ->Flight :
@@ -1183,17 +1173,17 @@ class Airline:
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid Time format")
         
-        flight = self.find_flight(flight_no) # [ดัก Error] ใช้ find_flight เพื่อให้มันพ่น Error เองถ้าไม่เจอ
+        flight = self.find_flight(flight_no) 
         
         airplane = self.search_airplane(airplane_no)
-        # [ดัก Error NoneType] ป้องกันการเรียก airplane.status ถัาหาไม่เจอ
+
         if airplane is None:
             raise HTTPException(status_code=404, detail="Airplane Not Found")
         
         if not airplane.status:
             raise HTTPException(status_code=400, detail="Airplane Unavailable")
         
-        #flight_instance = flight.create_flight_instance(airplane, depart_time, arrive_time)
+
         flight_instance = FlightInstance(flight_no, flight.origin, flight.destination, depart_time, arrive_time)
         flight_instance.add_airplane(airplane)
         flight.add_flight_instance(flight_instance)
@@ -1235,7 +1225,6 @@ class Airline:
         target = min(len(self.__flight_food_list), flight_instance.FOOD_IN_FLIGHT)
 
         while len(flight_instance.food_list) < target:
-            # [ดัก Error IndexError] จะปลอดภัยเสมอเพราะเราเช็ค foodlen < 1 ไว้ข้างบนแล้ว
             index = random.randint(0, foodlen - 1)
             if not (self.__flight_food_list[index] in flight_instance.food_list):
                 flight_instance.add_flightfood(self.__flight_food_list[index])
@@ -1286,14 +1275,6 @@ class Airline:
         food = FlightFood(name, price)
         self.__flight_food_list.append(food)
 
-    #def search_flight(self, flight_no: str) -> Flight | None:
-        #flight_no = flight_no.strip().upper()
-        #for flight in self.__flight_list:
-            #if flight.flight_no == flight_no:
-                #return flight
-        #return None
-    
-
     def search_airplane(self, airplane_no: str) -> Airplane | None:
         airplane_no = airplane_no.strip().upper()
         for airplane in self.__airplane_list:
@@ -1313,7 +1294,6 @@ class Airline:
     
     def find_flight(self, flight_no: str) -> Flight:
         flight_no = flight_no.strip().upper()
-        #flight = self.search_flight(flight_no)
         for flight in self.__flight_list:
             if flight.flight_no == flight_no:
                 return flight
@@ -1330,15 +1310,6 @@ class Airline:
         status_code=404,
         detail=f"Did not found flight {flight_no} that depart at {departure_time}"
         )
-    
-    #def search_flight_instance(self,flight_no,depart_time):
-        #for flight in self.__flight_list:
-            #if flight.flight_no == flight_no:
-                #for instance in flight.flight_instance_list:
-                    #if instance.departure_time == depart_time:
-                        #return instance
-                #raise HTTPException(status_code=404,detail="Instance Not Found")
-        #raise HTTPException(status_code=404,detail="Flight Not Found")
     
     def get_data_by_pnr(self, pnr: str) -> tuple[Passenger, Booking]:
         pnr = pnr.strip().upper()
@@ -1364,7 +1335,7 @@ class Airline:
         return False
     
     def verify_status(self, book: Booking) -> bool:
-        if book.booking_status == BookingStatus.COMPLETED:
+        if book.booking_status == BookingStatus.CHECKEDIN:
             return True
         else:
             raise HTTPException(status_code=400, detail="You haven't completed your checkin yet")
@@ -1467,6 +1438,10 @@ class Airline:
             raise HTTPException(status_code=400, detail="Date Format is wrong")
 
         received_flight_instance = self.find_flight_instance(flight_no, departure_time)
+
+        if not received_flight_instance.is_order_food_time() :
+            raise HTTPException(status_code=400, detail="The Fligt is Depart or End")
+
         received_flight_instance.check_flight_status(FlightStatus.SCHEDULED)
 
         received_flight_instance.check_seat_availability(seat_type, seat_amount)
@@ -1563,18 +1538,17 @@ class Airline:
                 status_code=400,
                 detail="Must buy food before depart"
             )
-        # [แก้บัค] ต้องอนุญาตให้สถานะ COMPLETED สั่งอาหารได้ด้วย เพราะต้องเลือกที่นั่งก่อนถึงจะเสิร์ฟอาหารได้
-        if booking.booking_status not in [BookingStatus.CHECKEDIN, BookingStatus.COMPLETED] or booking.payment_status != PaymentStatus.PAID:
+
+        if booking.booking_status != BookingStatus.CHECKEDIN or booking.payment_status != PaymentStatus.PAID:
             raise HTTPException(
                 status_code=400,
-                detail="Booking must be Checked-in/Completed and Paid to buy food"
+                detail="Booking must be Checked-in and Paid to buy food"
             )
 
         flight_seat = flight_instance.find_flight_seat_by_passenger_id(passenger_id)
         food = flight_instance.find_flight_instance_food_by_food_name(food_name)
-        
-        price = food.calculate_price(quantity)
 
+        price = food.calculate_price(quantity)
 
         payment = Payment.get_payment_type(payment_type)
         if payment is not None:
@@ -1582,14 +1556,15 @@ class Airline:
             payment.pay(received_passenger=passenger, price=price)
             flight_instance.update_total_income(price*booking.seat_amount)
 
-        sub_transaction = SubTransaction(food_name, price, payment_type)
+        sub_transaction = SubTransaction(food_name, price*booking.seat_amount, payment_type)
         transaction = booking.transaction
         transaction.add_sub_transaction(sub_transaction)
 
-        flight_seat.add_food(food)
+        flight_seat.add_food(food,quantity)
 
-        return "Order Food Success"
-    
+        total_price = price * booking.seat_amount
+        return f"Successfully ordered {quantity} x {food_name} for {booking.seat_amount} passengers (PNR: {pnr}). Total price: {total_price} via {payment_type}."
+
     def show_flight_instance(self):
         flight_list = []
         for flight in self.__flight_list:
@@ -1648,7 +1623,6 @@ class Airline:
         passenger = passenger_class(name, email)
         passenger.add_card(new_card)
         
-        # [แก้บัค] จ่ายเงินเฉพาะกรณีที่คลาสนั้นมีค่าธรรมเนียม (เช่น Guest ไม่ต้องจ่าย)
         if passenger.ANNUAL_FEE > 0:
             PayByCard.pay(passenger, passenger.ANNUAL_FEE)
             
@@ -1662,7 +1636,6 @@ class Airline:
         duplicates = []
         chosen_seat_obj = []
 
-        # [ดัก Error] เช็คก่อนว่า Input ไม่ใช่ค่าว่างล้วนๆ
         if not isinstance(seat_string, str) or not seat_string.strip():
             return chosen, ["EMPTY_INPUT"], duplicates, chosen_seat_obj
 
