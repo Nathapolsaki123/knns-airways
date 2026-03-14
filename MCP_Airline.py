@@ -10,7 +10,7 @@ import random
 import uuid
 
 # นำเข้า Logic ทั้งหมดจากไฟล์ของคุณ (ต้องชื่อไฟล์ airline_logic.py)
-from _12Test import *
+from Airline_system import *
 
 # สร้าง MCP Server
 mcp = FastMCP("KNNS-Airline-Ultimate-Test")
