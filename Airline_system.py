@@ -727,16 +727,6 @@ class FlightInstance:
         return time_until_departure >= timedelta(seconds=0)
 
 
-    def open_check_in(self) -> None:
-        self.__status = FlightStatus.CHECKINOPEN
-
-    def close_check_in(self) -> None:
-        self.__status = FlightStatus.BOARDING
-
-    def cancel_flight(self) -> None:
-        self.__status = FlightStatus.CANCELLED
-
-
 # =========================
 # TICKET
 # =========================
@@ -1022,9 +1012,6 @@ class Booking:
     def add_ticket(self, ticket: Ticket) -> None:
         self.__ticket_list.append(ticket)
 
-    def calculate_max_weight(self) -> None:
-        pass
-
     def confirm_booking(self) -> None:
         self.__booking_status = BookingStatus.CONFIRMED
 
@@ -1054,8 +1041,6 @@ class Booking:
 
 class Airline:
     
-    ECONOMYCLASS_LIMIT_WEIGHT: int = 15
-    BUSINESSCLASS_LIMIT_WEIGHT: int = 30
     EXTRA_FEE_PER_KG: float = 300.0
 
     def __init__(self, name: str) -> None:
@@ -1325,7 +1310,7 @@ class Airline:
         seat_class = booking.seat_type
         extra_weight = passenger.EXTRA_WEIGHT
         
-        weight_limit_before_tier = self.ECONOMYCLASS_LIMIT_WEIGHT if(seat_class == "Economy") else self.BUSINESSCLASS_LIMIT_WEIGHT
+        weight_limit_before_tier = Economy.LUGGAGE_LIMIT if(seat_class == "Economy") else Business.LUGGAGE_LIMIT
 
         return weight_limit_before_tier + extra_weight
     

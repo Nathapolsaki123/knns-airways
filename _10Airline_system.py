@@ -280,8 +280,7 @@ class Seat(ABC):
     
 
 class Economy(Seat):
-    SEAT_PRICE: float = 300.0
-    LUGGAGE_LIMIT: float = 20.0 
+    SEAT_PRICE: float = 300.0 
 
     def __init__(self, seat_no: str) -> None:
         super().__init__(seat_no)
@@ -298,8 +297,7 @@ class Economy(Seat):
     
 
 class Business(Seat):
-    SEAT_PRICE: float = 500.0
-    LUGGAGE_LIMIT: float = 40.0 
+    SEAT_PRICE: float = 500.0 
 
     def __init__(self, seat_no: str) -> None:
         super().__init__(seat_no)
@@ -1012,14 +1010,11 @@ class Booking:
     
     def change_fare(self, amount: float) -> None:
         if not isinstance(amount, (int, float)):
-             raise HTTPException(status_code=400, detail="Amount must be a number")
+            raise HTTPException(status_code=400, detail="Amount must be a number")
         self.__fare += amount
 
     def add_ticket(self, ticket: Ticket) -> None:
         self.__ticket_list.append(ticket)
-
-    def calculate_max_weight(self) -> None:
-        pass
 
     def confirm_booking(self) -> None:
         self.__booking_status = BookingStatus.CONFIRMED
